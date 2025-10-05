@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+
+# Go binaries
+bin/sink
+
+# Test artifacts
+test/coverage.out
+test/coverage.html
+test/*.log
+test/*.tmp
+test/testdata/
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+out/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+Thumbs.db

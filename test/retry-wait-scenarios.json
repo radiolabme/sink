@@ -1,0 +1,42 @@
+{
+  "$schema": "../data/install-config.schema.json",
+  "version": "1.0.0",
+  "description": "Real-world retry/wait scenarios",
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS (Wait Scenarios)",
+      "install_steps": [
+        {
+          "name": "Start simple HTTP server in background",
+          "command": "python3 -m http.server 8765 > /tmp/http-server.log 2>&1 & echo $! > /tmp/http-server.pid"
+        },
+        {
+          "name": "Wait for HTTP server to be ready",
+          "command": "curl -f -s http://localhost:8765/ > /dev/null",
+          "retry": "until",
+          "timeout": "10s"
+        },
+        {
+          "name": "Stop HTTP server",
+          "command": "kill $(cat /tmp/http-server.pid) 2>/dev/null || true"
+        },
+        {
+          "name": "Create file after delay",
+          "command": "(sleep 2 && touch /tmp/sink-delayed-file) &"
+        },
+        {
+          "name": "Wait for file to appear",
+          "command": "test -f /tmp/sink-delayed-file",
+          "retry": "until",
+          "timeout": "5s"
+        },
+        {
+          "name": "Cleanup",
+          "command": "rm -f /tmp/sink-delayed-file /tmp/http-server.pid /tmp/http-server.log"
+        }
+      ]
+    }
+  ]
+}

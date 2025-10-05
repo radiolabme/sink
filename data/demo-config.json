@@ -1,0 +1,43 @@
+{
+  "$schema": "./install-config.schema.json",
+  "version": "1.0.0",
+  "facts": {
+    "os": {
+      "command": "uname -s | tr '[:upper:]' '[:lower:]'",
+      "description": "Operating system",
+      "export": "DEMO_OS"
+    }
+  },
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS Demo",
+      "install_steps": [
+        {
+          "name": "Demo: Show OS",
+          "command": "echo \"Running on {{.os}}\""
+        },
+        {
+          "name": "Demo: Check shell",
+          "check": "command -v sh",
+          "error": "Shell not found"
+        },
+        {
+          "name": "Demo: Create temp file",
+          "check": "test -f /tmp/sink-demo",
+          "on_missing": [
+            {
+              "name": "Create demo file",
+              "command": "echo 'Sink Demo' > /tmp/sink-demo"
+            }
+          ]
+        },
+        {
+          "name": "Demo: Verify file",
+          "command": "cat /tmp/sink-demo"
+        }
+      ]
+    }
+  ]
+}

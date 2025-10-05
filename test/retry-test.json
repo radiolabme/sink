@@ -1,0 +1,57 @@
+{
+  "$schema": "../data/install-config.schema.json",
+  "version": "1.0.0",
+  "description": "Test configuration for retry mechanism",
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS (Test)",
+      "install_steps": [
+        {
+          "name": "Test immediate success (no retry)",
+          "command": "echo 'This should succeed immediately'"
+        },
+        {
+          "name": "Test retry with quick success",
+          "command": "test -f /tmp/sink-retry-test-ready || (sleep 2 && touch /tmp/sink-retry-test-ready && exit 0)",
+          "retry": "until",
+          "timeout": "10s"
+        },
+        {
+          "name": "Cleanup test file",
+          "command": "rm -f /tmp/sink-retry-test-ready"
+        },
+        {
+          "name": "Test retry with port check",
+          "command": "nc -z localhost 9999",
+          "retry": "until",
+          "timeout": "5s"
+        }
+      ]
+    },
+    {
+      "os": "linux",
+      "match": "linux*",
+      "name": "Linux",
+      "distributions": [
+        {
+          "ids": ["ubuntu", "debian"],
+          "name": "Ubuntu/Debian",
+          "install_steps": [
+            {
+              "name": "Test immediate success (no retry)",
+              "command": "echo 'This should succeed immediately'"
+            },
+            {
+              "name": "Test retry with timeout",
+              "command": "false",
+              "retry": "until",
+              "timeout": "3s"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

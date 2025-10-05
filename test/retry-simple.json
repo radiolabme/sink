@@ -1,0 +1,22 @@
+{
+  "$schema": "../data/install-config.schema.json",
+  "version": "1.0.0",
+  "description": "Comprehensive retry mechanism test",
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS (Retry Tests)",
+      "install_steps": [
+        {
+          "name": "1. No retry - immediate success",
+          "command": "echo 'Success!'"
+        },
+        {
+          "name": "2. No retry - immediate failure",
+          "command": "exit 1"
+        }
+      ]
+    }
+  ]
+}

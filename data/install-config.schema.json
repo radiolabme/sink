@@ -1,0 +1,365 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brian/sink/install-config.schema.json",
+  "title": "Sink Configuration Schema",
+  "description": "Schema for defining multi-platform installation configurations with declarative fact gathering",
+  "type": "object",
+  "required": ["version", "platforms"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema for validation"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of this configuration"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of this configuration format"
+    },
+    "facts": {
+      "type": "object",
+      "description": "Declarative fact gathering definitions",
+      "patternProperties": {
+        "^[a-z_][a-z0-9_]*$": {
+          "$ref": "#/$defs/fact"
+        }
+      },
+      "additionalProperties": false
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Default values used across all platforms",
+      "properties": {
+        "package": {
+          "type": "string",
+          "description": "Default package name"
+        },
+        "check_command": {
+          "type": "string",
+          "description": "Default command to check if package is installed"
+        }
+      },
+      "additionalProperties": true
+    },
+    "platforms": {
+      "type": "array",
+      "description": "List of supported platforms",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/platform"
+      }
+    },
+    "fallback": {
+      "$ref": "#/$defs/fallback",
+      "description": "Global fallback error message for unsupported platforms"
+    }
+  },
+  "$defs": {
+    "fact": {
+      "type": "object",
+      "required": ["command"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Shell command to gather this fact"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this fact"
+        },
+        "export": {
+          "type": "string",
+          "pattern": "^[A-Z_][A-Z0-9_]*$",
+          "description": "Environment variable name to export (must be valid shell variable name)"
+        },
+        "platforms": {
+          "type": "array",
+          "description": "Only gather this fact on specified platforms",
+          "items": {
+            "enum": ["darwin", "linux", "windows"]
+          },
+          "uniqueItems": true
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "Fail if fact cannot be gathered on applicable platforms"
+        }
+      },
+      "oneOf": [
+        {
+          "description": "String fact with optional transform mapping",
+          "properties": {
+            "type": {
+              "const": "string"
+            },
+            "transform": {
+              "type": "object",
+              "description": "Map input values to output values",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "strict": {
+              "type": "boolean",
+              "default": false,
+              "description": "Fail if command output is not in transform map"
+            }
+          }
+        },
+        {
+          "description": "Boolean fact",
+          "properties": {
+            "type": {
+              "const": "boolean"
+            }
+          },
+          "not": {
+            "required": ["transform", "strict"]
+          }
+        },
+        {
+          "description": "Integer fact",
+          "properties": {
+            "type": {
+              "const": "integer"
+            }
+          },
+          "not": {
+            "required": ["transform", "strict"]
+          }
+        },
+        {
+          "description": "String fact without explicit type",
+          "not": {
+            "required": ["type"]
+          },
+          "properties": {
+            "transform": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "strict": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        }
+      ]
+    },
+    "platform": {
+      "type": "object",
+      "required": ["os", "match", "name"],
+      "oneOf": [
+        {
+          "description": "Platform with direct installation steps (non-Linux or simple cases)",
+          "required": ["os", "match", "name", "install_steps"],
+          "properties": {
+            "os": {
+              "type": "string",
+              "description": "Internal OS identifier (darwin, linux, windows, etc.)"
+            },
+            "match": {
+              "type": "string",
+              "description": "Shell pattern to match uname -s output (supports | for alternation)",
+              "examples": ["darwin*", "linux*", "mingw*|msys*|cygwin*"]
+            },
+            "name": {
+              "type": "string",
+              "description": "Human-readable platform name"
+            },
+            "required_tools": {
+              "type": "array",
+              "description": "List of required command-line tools",
+              "items": {"type": "string"}
+            },
+            "install_steps": {
+              "type": "array",
+              "description": "Installation steps for this platform",
+              "minItems": 1,
+              "items": {"$ref": "#/$defs/install_step"}
+            },
+            "fallback": {
+              "$ref": "#/$defs/fallback",
+              "description": "Fallback error for unsupported variants of this platform"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Platform with distribution-specific configurations (Linux)",
+          "required": ["os", "match", "name", "distributions"],
+          "properties": {
+            "os": {
+              "type": "string",
+              "description": "Internal OS identifier (typically 'linux')"
+            },
+            "match": {
+              "type": "string",
+              "description": "Shell pattern to match uname -s output",
+              "examples": ["linux*"]
+            },
+            "name": {
+              "type": "string",
+              "description": "Human-readable platform name"
+            },
+            "distributions": {
+              "type": "array",
+              "description": "Linux distribution-specific configurations",
+              "minItems": 1,
+              "items": {"$ref": "#/$defs/distribution"}
+            },
+            "fallback": {
+              "$ref": "#/$defs/fallback",
+              "description": "Fallback error for unsupported distributions"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "distribution": {
+      "type": "object",
+      "required": ["ids", "name", "install_steps"],
+      "properties": {
+        "ids": {
+          "type": "array",
+          "description": "Distribution IDs from /etc/os-release",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "examples": ["ubuntu", "debian", "alpine", "fedora"]
+          }
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable distribution name"
+        },
+        "install_steps": {
+          "type": "array",
+          "description": "Installation steps for this distribution",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/install_step"
+          }
+        }
+      }
+    },
+    "install_step": {
+      "type": "object",
+      "required": ["name"],
+      "oneOf": [
+        {
+          "description": "Command execution step - runs a command and shows error if it fails",
+          "required": ["name", "command"],
+          "properties": {
+            "name": {"type": "string"},
+            "command": {"type": "string", "description": "Shell command to execute"},
+            "message": {"type": "string", "description": "Message to display before executing"},
+            "error": {"type": "string", "description": "Error message if command fails (exit code != 0)"},
+            "retry": {
+              "type": "string",
+              "enum": ["until"],
+              "description": "Retry behavior. 'until' = keep retrying command until it succeeds (exit code 0) or timeout is reached"
+            },
+            "timeout": {
+              "type": "string",
+              "pattern": "^[0-9]+(s|m|h)$",
+              "description": "Timeout duration for retry (e.g., '30s', '2m', '5m'). Only used if retry is set. Defaults to 60s if retry is set but timeout is omitted.",
+              "examples": ["30s", "2m", "5m", "1h"]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Check-with-error step - checks a condition and shows error if check fails",
+          "required": ["name", "check", "error"],
+          "properties": {
+            "name": {"type": "string"},
+            "check": {"type": "string", "description": "Shell command to check a condition"},
+            "error": {"type": "string", "description": "Error message if check fails (exit code != 0)"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Check-with-remediation step - checks a condition and runs remediation if check fails",
+          "required": ["name", "check", "on_missing"],
+          "properties": {
+            "name": {"type": "string"},
+            "check": {"type": "string", "description": "Shell command to check a condition"},
+            "on_missing": {
+              "type": "array",
+              "description": "Steps to execute if check fails",
+              "minItems": 1,
+              "items": {"$ref": "#/$defs/remediation_step"}
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Error-only step - always fails with error message (for unsupported scenarios)",
+          "required": ["name", "error"],
+          "properties": {
+            "name": {"type": "string"},
+            "error": {"type": "string", "description": "Error message to display"}
+          },
+          "additionalProperties": false,
+          "not": {
+            "anyOf": [
+              {"required": ["command"]},
+              {"required": ["check"]},
+              {"required": ["on_missing"]},
+              {"required": ["message"]}
+            ]
+          }
+        }
+      ]
+    },
+    "remediation_step": {
+      "type": "object",
+      "required": ["name", "command"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable step name"
+        },
+        "command": {
+          "type": "string",
+          "description": "Shell command to execute"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message to display if remediation command fails (exit code != 0)"
+        },
+        "retry": {
+          "type": "string",
+          "enum": ["until"],
+          "description": "Retry behavior. 'until' = keep retrying command until it succeeds (exit code 0) or timeout is reached"
+        },
+        "timeout": {
+          "type": "string",
+          "pattern": "^[0-9]+(s|m|h)$",
+          "description": "Timeout duration for retry (e.g., '30s', '2m', '5m'). Only used if retry is set. Defaults to 60s if retry is set but timeout is omitted.",
+          "examples": ["30s", "2m", "5m", "1h"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "fallback": {
+      "type": "object",
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "string",
+          "description": "Error message (supports {os} and {distro} placeholders)"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "$schema": "./install-config.schema.json",
+  "description": "Colima installation configuration for multiple platforms",
+  "version": "1.0.0",
+  "defaults": {
+    "package": "colima",
+    "check_command": "command -v colima"
+  },
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS",
+      "required_tools": ["brew"],
+      "install_steps": [
+        {
+          "name": "Check Homebrew",
+          "check": "command -v brew",
+          "error": "Error: Homebrew required. Install from https://brew.sh"
+        },
+        {
+          "name": "Install via Homebrew",
+          "command": "brew install colima",
+          "message": "Installing colima via Homebrew...",
+          "error": "Error: Failed to install colima via Homebrew. Check your network connection and permissions."
+        }
+      ]
+    },
+    {
+      "os": "linux",
+      "match": "linux*",
+      "name": "Linux",
+      "distributions": [
+        {
+          "ids": ["ubuntu", "debian"],
+          "name": "Ubuntu/Debian",
+          "install_steps": [
+            {
+              "name": "Check or install snapd",
+              "check": "command -v snap",
+              "on_missing": [
+                {
+                  "name": "Update package list",
+                  "command": "sudo apt-get update",
+                  "error": "Error: Failed to update package list. Check network connection and repository configuration."
+                },
+                {
+                  "name": "Install snapd",
+                  "command": "sudo apt-get install -y snapd",
+                  "error": "Error: Failed to install snapd. Check permissions and package availability."
+                }
+              ]
+            },
+            {
+              "name": "Install via snap",
+              "command": "sudo snap install colima --classic",
+              "message": "Installing colima via snap...",
+              "error": "Error: Failed to install colima via snap. Check permissions and network connection."
+            }
+          ]
+        },
+        {
+          "ids": ["alpine"],
+          "name": "Alpine Linux",
+          "install_steps": [
+            {
+              "name": "Update apk",
+              "command": "sudo apk update",
+              "error": "Error: Failed to update apk package index. Check network connection and repository configuration."
+            },
+            {
+              "name": "Install via apk",
+              "command": "sudo apk add colima",
+              "message": "Installing colima via apk...",
+              "error": "Error: Failed to install colima via apk. Package may not be available in Alpine repositories."
+            }
+          ]
+        },
+        {
+          "ids": ["fedora", "rhel", "centos", "rocky"],
+          "name": "Red Hat Family",
+          "install_steps": [
+            {
+              "name": "Check snap",
+              "check": "command -v snap",
+              "error": "Error: Install snapd first or see: https://github.com/abiosoft/colima"
+            },
+            {
+              "name": "Install via snap",
+              "command": "sudo snap install colima --classic",
+              "message": "Installing colima via snap...",
+              "error": "Error: Failed to install colima via snap. Check permissions and network connection."
+            }
+          ]
+        }
+      ],
+      "fallback": {
+        "error": "Unsupported distro: {distro}. See: https://github.com/abiosoft/colima"
+      }
+    },
+    {
+      "os": "windows",
+      "match": "mingw*|msys*|cygwin*",
+      "name": "Windows",
+      "install_steps": [
+        {
+          "name": "Windows not supported",
+          "error": "Windows detected. Colima requires WSL2 or Linux VM.\nInstall WSL2: wsl --install\nThen run this Makefile from within WSL2."
+        }
+      ]
+    }
+  ],
+  "fallback": {
+    "error": "Unsupported OS: {os}"
+  }
+}
