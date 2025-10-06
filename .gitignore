@@ -2,7 +2,12 @@
 .DS_Store
 
 # Go binaries
-bin/sink
+bin/
+
+# Local tooling (installed by setup.sh)
+.tools/
+.go/
+.envrc
 
 # Test artifacts
 test/coverage.out

@@ -32,13 +32,21 @@ Documentation is organized in `docs/` with focused guides on safety features, ex
 
 ## Quick Start
 
-Building Sink requires Go 1.19 or later. The project includes a Makefile with common operations, or you can use Go commands directly:
+Building Sink requires Go 1.19 or later and Make. If you don't have these tools installed, run the setup script to install them locally:
+
+```bash
+./setup.sh
+```
+
+The setup script checks your system for Go and Make. If both are already installed, it displays the available make targets and exits. If either tool is missing, it downloads and installs them to the local `.tools/` directory. After local installation, run `source .envrc` to add the tools to your PATH for the current terminal session.
+
+Once the development tools are available, build Sink using Make:
 
 ```bash
 make build
 ```
 
-Alternatively:
+Alternatively, use Go commands directly:
 
 ```bash
 go build -o bin/sink ./src/...

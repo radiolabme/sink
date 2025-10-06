@@ -5,49 +5,53 @@
 # Default target
 all: build test
 
-# Build the binary (dynamic linking)
+# Build binary for current platform (dynamic linking)
 build:
-	@echo "Building sink..."
+	@echo "Building sink for current platform..."
 	@go build -o bin/sink ./src/...
 	@echo "✅ Binary built: bin/sink"
+	@echo "   Platform: $$(go env GOOS)/$$(go env GOARCH)"
 
-# Build static binary (Linux only - fully static)
+# Build static binary for Linux AMD64 (fully portable, no dependencies)
 build-static:
-	@echo "Building static binary (Linux)..."
+	@echo "Building static binary for linux/amd64..."
 	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
 		-ldflags="-s -w -extldflags=-static" \
 		-tags netgo,osusergo \
 		-o bin/sink-linux-amd64-static \
 		./src/...
 	@echo "✅ Static binary built: bin/sink-linux-amd64-static"
+	@echo "   Platform: linux/amd64 (static)"
 	@file bin/sink-linux-amd64-static || true
 
-# Build Linux binary (dynamic linking)
+# Build dynamic binary for Linux AMD64
 build-linux:
-	@echo "Building Linux binary..."
+	@echo "Building dynamic binary for linux/amd64..."
 	@GOOS=linux GOARCH=amd64 go build -o bin/sink-linux-amd64 ./src/...
-	@echo "✅ Linux binary built: bin/sink-linux-amd64"
+	@echo "✅ Dynamic binary built: bin/sink-linux-amd64"
+	@echo "   Platform: linux/amd64 (dynamic)"
 
 # Build all platform binaries
 build-all:
-	@echo "Building all platform binaries..."
+	@echo "Cross-compiling for all platforms and architectures..."
 	@mkdir -p bin
-	@echo "  Building macOS AMD64..."
+	@echo "  darwin/amd64 (dynamic)..."
 	@GOOS=darwin GOARCH=amd64 go build -o bin/sink-darwin-amd64 ./src/...
-	@echo "  Building macOS ARM64..."
+	@echo "  darwin/arm64 (dynamic)..."
 	@GOOS=darwin GOARCH=arm64 go build -o bin/sink-darwin-arm64 ./src/...
-	@echo "  Building Linux AMD64..."
+	@echo "  linux/amd64 (dynamic)..."
 	@GOOS=linux GOARCH=amd64 go build -o bin/sink-linux-amd64 ./src/...
-	@echo "  Building Linux ARM64..."
+	@echo "  linux/arm64 (dynamic)..."
 	@GOOS=linux GOARCH=arm64 go build -o bin/sink-linux-arm64 ./src/...
-	@echo "  Building Linux AMD64 (static)..."
+	@echo "  linux/amd64 (static)..."
 	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
 		-ldflags="-s -w -extldflags=-static" \
 		-tags netgo,osusergo \
 		-o bin/sink-linux-amd64-static \
 		./src/...
-	@echo "✅ All binaries built in bin/"
-	@ls -lh bin/sink-*
+	@echo ""
+	@echo "✅ Cross-compilation complete - 5 binaries built:"
+	@ls -lh bin/sink-* 2>/dev/null || ls -l bin/sink-*
 
 # Run all tests
 test:
@@ -98,10 +102,10 @@ help:
 	@echo "Sink - Shell Installation Kit"
 	@echo ""
 	@echo "Build Targets:"
-	@echo "  make build           - Build the binary for current platform"
-	@echo "  make build-static    - Build static binary for Linux (portable)"
-	@echo "  make build-linux     - Build Linux binary (dynamic linking)"
-	@echo "  make build-all       - Build binaries for all platforms"
+	@echo "  make build           - Build for current platform (auto-detects GOOS/GOARCH)"
+	@echo "  make build-static    - Cross-compile static binary for linux/amd64"
+	@echo "  make build-linux     - Cross-compile dynamic binary for linux/amd64"
+	@echo "  make build-all       - Cross-compile for all platforms (darwin+linux, amd64+arm64)"
 	@echo ""
 	@echo "Test Targets:"
 	@echo "  make test            - Run all tests"
@@ -125,7 +129,15 @@ help:
 	@echo "  scripts/   - Utility scripts (bootstrap-remote.sh)"
 	@echo ""
 	@echo "Build Notes:"
-	@echo "  - Default 'build' uses dynamic linking (normal)"
-	@echo "  - 'build-static' creates fully static Linux binary (portable)"
-	@echo "  - 'build-all' creates binaries for macOS/Linux AMD64/ARM64"
-	@echo "  - Static builds use CGO_ENABLED=0 for maximum portability"
+	@echo "  - All builds are cross-platform: set GOOS/GOARCH to target any platform"
+	@echo "  - Static builds (linux only): CGO_ENABLED=0, no external dependencies"
+	@echo "  - Dynamic builds: smaller, use system libraries (libc, etc.)"
+	@echo "  - Current platform: $$(go env GOOS)/$$(go env GOARCH)"
+	@echo ""
+	@echo "Common Platforms (64-bit):"
+	@echo "  darwin/amd64   darwin/arm64   linux/amd64   linux/arm64"
+	@echo ""
+	@echo "Other Supported Architectures:"
+	@echo "  linux/386 (32-bit x86)    linux/arm (32-bit ARM)"
+	@echo "  linux/riscv64             linux/ppc64le"
+	@echo "  Run 'go tool dist list' to see all platforms"

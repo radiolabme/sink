@@ -1,30 +1,61 @@
 # Build Configuration
 
-This document explains Sink's build options and binary configurations.
+This document explains Sink's build options and cross-platform compilation capabilities.
 
 ## Quick Answer
 
-**Current `make build`**: ❌ **NOT statically linked** (uses dynamic system libraries)
+**All builds are cross-platform**: Use `GOOS` and `GOARCH` to target any platform from anywhere.
 
-**For static builds**: ✅ Use `make build-static` (Linux only, fully portable)
+**Current platform default**: `make build` compiles for your local system with dynamic linking.
+
+**For maximum portability**: Use `make build-static` for a fully static Linux binary.
+
+## Cross-Platform Compilation
+
+Go's built-in cross-compilation allows you to build binaries for any supported platform from any other platform. No special toolchains required.
+
+**Example - Build Linux binary on macOS:**
+```bash
+make build-static
+# or manually:
+GOOS=linux GOARCH=amd64 go build -o bin/sink-linux ./src/...
+```
+
+**Common 64-bit platforms (default builds):**
+- `darwin/amd64` - macOS Intel
+- `darwin/arm64` - macOS Apple Silicon  
+- `linux/amd64` - Linux x86-64
+- `linux/arm64` - Linux ARM64 (Raspberry Pi 4+, AWS Graviton, etc.)
+
+**Additional supported architectures:**
+- `linux/386` - 32-bit x86 Intel/AMD
+- `linux/arm` - 32-bit ARM (Raspberry Pi 1-3, older devices)
+- `linux/riscv64` - RISC-V 64-bit
+- `linux/ppc64le` - PowerPC 64-bit Little Endian (IBM POWER)
+- `linux/s390x` - IBM System z
+- `linux/mips*` - MIPS architectures
+
+Run `go tool dist list` to see all available platforms. The Makefile focuses on 64-bit architectures as they represent >95% of modern deployments.
 
 ## Build Targets
 
-### `make build` - Default Build
-Creates a binary for your current platform with **dynamic linking**.
+### `make build` - Current Platform Build
+Creates a binary for **your current platform** with dynamic linking. Auto-detects `GOOS` and `GOARCH`.
 
 ```bash
 make build
 # Output: bin/sink
+# Platform: darwin/arm64 (or whatever your system is)
 ```
 
 **Characteristics:**
+- Detects current platform automatically
 - Uses system dynamic libraries
-- Smaller binary size (~10MB on macOS)
+- Smaller binary size (~10MB)
 - Requires compatible system libraries
 - Best for: Local development and testing
 
-**Dependencies (macOS example):**
+**Dependencies (example on macOS):**
 ```
 /usr/lib/libSystem.B.dylib
 /usr/lib/libresolv.9.dylib
@@ -32,53 +63,115 @@ make build
 /System/Library/Frameworks/Security.framework
 ```
 
-### `make build-static` - Static Linux Build
-Creates a **fully static** Linux binary with zero external dependencies.
+### `make build-static` - Static Linux Build (Cross-Platform)
+**Cross-compiles** a fully static Linux AMD64 binary from any platform with zero external dependencies.
 
 ```bash
 make build-static
 # Output: bin/sink-linux-amd64-static
+# Platform: linux/amd64 (regardless of build host)
 ```
 
 **Characteristics:**
-- `CGO_ENABLED=0` - Disables CGO for pure Go build
+- Cross-compiles to `linux/amd64` from any build platform
+- `CGO_ENABLED=0` - Pure Go build, no C dependencies
 - `-extldflags=-static` - Forces static linking
 - `-tags netgo,osusergo` - Pure Go networking and user/group lookups
 - `-ldflags="-s -w"` - Strips debug info and symbol table
-- Fully portable across Linux distributions
+- Fully portable across all Linux distributions
 - ~7.4MB binary size
 - Best for: Production deployments, containers, CI/CD
 
 **Verification:**
 ```bash
 file bin/sink-linux-amd64-static
-# Output: statically linked, stripped
+# Output: ELF 64-bit LSB executable, x86-64, statically linked, stripped
 ```
 
-### `make build-linux` - Dynamic Linux Build
-Creates a Linux binary with dynamic linking.
+### `make build-linux` - Dynamic Linux Build (Cross-Platform)
+**Cross-compiles** a Linux AMD64 binary with dynamic linking from any platform.
 
 ```bash
 make build-linux
 # Output: bin/sink-linux-amd64
+# Platform: linux/amd64 (regardless of build host)
 ```
 
-**Use case:** When you need a Linux binary but don't need portability.
+**Use case:** When you need a Linux binary but don't need maximum portability.
 
-### `make build-all` - Multi-Platform Build
-Creates binaries for all supported platforms:
+### `make build-all` - Multi-Platform Cross-Compilation
+**Cross-compiles** binaries for all supported platforms from your current system:
 
 ```bash
 make build-all
-# Output:
-#   bin/sink-darwin-amd64          (macOS Intel)
-#   bin/sink-darwin-arm64          (macOS Apple Silicon)
+# Cross-compiles 5 binaries:
+#   bin/sink-darwin-amd64          (macOS Intel, dynamic)
+#   bin/sink-darwin-arm64          (macOS Apple Silicon, dynamic)
 #   bin/sink-linux-amd64           (Linux x64, dynamic)
 #   bin/sink-linux-arm64           (Linux ARM64, dynamic)
 #   bin/sink-linux-amd64-static    (Linux x64, static)
 ```
 
 **Best for:** Release preparation, testing cross-platform compatibility
+
+**Output example:**
+```
+Cross-compiling for all platforms and architectures...
+  darwin/amd64 (dynamic)...
+  darwin/arm64 (dynamic)...
+  linux/amd64 (dynamic)...
+  linux/arm64 (dynamic)...
+  linux/amd64 (static)...
+
+✅ Cross-compilation complete - 5 binaries built
+```
+
+## Manual Cross-Compilation Examples
+
+Go makes it trivial to build for any target platform. Just set `GOOS` and `GOARCH`:
+
+### Build for Raspberry Pi 4+ (64-bit ARM)
+```bash
+GOOS=linux GOARCH=arm64 go build -o bin/sink-pi4 ./src/...
+```
+
+### Build for Raspberry Pi 1-3 (32-bit ARM)
+```bash
+GOOS=linux GOARCH=arm GOARM=7 go build -o bin/sink-pi3 ./src/...
+```
+
+### Build for 32-bit x86 Linux
+```bash
+GOOS=linux GOARCH=386 go build -o bin/sink-linux-32bit ./src/...
+```
+
+### Build for Linux server (from macOS)
+```bash
+GOOS=linux GOARCH=amd64 go build -o bin/sink-linux ./src/...
+```
+
+### Build for macOS (from Linux)
+```bash
+GOOS=darwin GOARCH=arm64 go build -o bin/sink-mac ./src/...
+```
+
+### Build static Linux binary (from anywhere)
+```bash
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+  -ldflags="-s -w -extldflags=-static" \
+  -tags netgo,osusergo \
+  -o bin/sink-static \
+  ./src/...
+```
+
+### View all supported platforms
+```bash
+go tool dist list | grep -E "^(darwin|linux)"
+# Output shows 15+ linux architectures and 2 darwin:
+#   darwin/amd64, darwin/arm64
+#   linux/386, linux/amd64, linux/arm, linux/arm64
+#   linux/mips*, linux/ppc64*, linux/riscv64, linux/s390x, etc.
+```
 
 ## Static vs Dynamic Linking
 
