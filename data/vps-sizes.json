@@ -1,0 +1,69 @@
+{
+  "$schema": "./vps-sizes.schema.json",
+  "description": "Common VPS instance sizes based on industry standards (DigitalOcean, Linode, AWS)",
+  "sizes": [
+    {
+      "name": "nano",
+      "description": "Minimal resources for testing and very light workloads",
+      "cpus": 1,
+      "memory": 1,
+      "disk": 25,
+      "use_cases": ["Testing", "Learning", "Single-page apps", "Development"],
+      "comparable_to": ["DigitalOcean Basic 1GB", "Linode Nanode 1GB", "Azure B1s"]
+    },
+    {
+      "name": "micro",
+      "description": "Small production workloads and development environments",
+      "cpus": 1,
+      "memory": 2,
+      "disk": 50,
+      "use_cases": ["Small websites", "Blogs", "Simple APIs", "CI runners"],
+      "comparable_to": ["DigitalOcean Basic 2GB", "Linode 2GB", "Azure B1ms"]
+    },
+    {
+      "name": "small",
+      "description": "Light production workloads with moderate traffic",
+      "cpus": 2,
+      "memory": 4,
+      "disk": 80,
+      "use_cases": ["WordPress sites", "Small databases", "API servers", "Docker host"],
+      "comparable_to": ["DigitalOcean Basic 4GB", "Linode 4GB", "Azure B2s"]
+    },
+    {
+      "name": "medium",
+      "description": "Standard production workloads",
+      "cpus": 4,
+      "memory": 8,
+      "disk": 160,
+      "use_cases": ["Application servers", "Databases", "Multiple containers", "Media processing"],
+      "comparable_to": ["DigitalOcean Basic 8GB", "Linode 8GB", "Azure D4s v5"]
+    },
+    {
+      "name": "large",
+      "description": "Heavy production workloads",
+      "cpus": 8,
+      "memory": 16,
+      "disk": 320,
+      "use_cases": ["Large databases", "High-traffic apps", "Data processing", "Build servers"],
+      "comparable_to": ["DigitalOcean Basic 16GB", "Linode 16GB", "Azure D8s v5"]
+    },
+    {
+      "name": "xlarge",
+      "description": "Enterprise-level workloads",
+      "cpus": 16,
+      "memory": 32,
+      "disk": 640,
+      "use_cases": ["Large-scale apps", "Analytics", "Machine learning", "Big data"],
+      "comparable_to": ["DigitalOcean General Purpose 32GB", "Linode 32GB", "Azure D16s v5"]
+    },
+    {
+      "name": "2xlarge",
+      "description": "High-performance production workloads",
+      "cpus": 32,
+      "memory": 64,
+      "disk": 1280,
+      "use_cases": ["Data warehouses", "High-performance computing", "Large clusters"],
+      "comparable_to": ["DigitalOcean CPU-Optimized 64GB", "Linode 64GB", "Azure D32s v5"]
+    }
+  ]
+}

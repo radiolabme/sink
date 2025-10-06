@@ -1,0 +1,65 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "description": "Bootstrap configuration using GitHub URL pinning with release tags",
+  "version": "1.0.0",
+  
+  "bootstrap": {
+    "security": {
+      "allowed_sources": [
+        "https://raw.githubusercontent.com/myorg/configs/*",
+        "https://github.com/myorg/configs/releases/download/*"
+      ],
+      "require_signatures": true,
+      "require_https": true,
+      "require_pinning": true,
+      "trusted_keys": [
+        "0x1234567890ABCDEF"
+      ]
+    },
+    
+    "remote_configs": [
+      {
+        "name": "Production Config (Pinned to v1.0.0)",
+        "url": "https://raw.githubusercontent.com/myorg/configs/v1.0.0/prod.json",
+        "pin": {
+          "type": "tag",
+          "value": "v1.0.0",
+          "repository": "myorg/configs",
+          "require_immutable": true
+        },
+        "verification": {
+          "auto_fetch_checksum": true,
+          "checksums": {
+            "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+          },
+          "gpg_key": "0x1234567890ABCDEF"
+        }
+      }
+    ],
+    
+    "ssh": {
+      "targets": [
+        "deploy@prod-1.example.com",
+        "deploy@prod-2.example.com",
+        "deploy@prod-3.example.com"
+      ],
+      "parallel": false,
+      "timeout": "5m",
+      "retry": 2
+    }
+  },
+  
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS",
+      "install_steps": [
+        {
+          "name": "Bootstrap complete",
+          "command": "echo 'Configuration bootstrapped successfully'"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "description": "Bootstrap using GitHub Releases with multiple verification layers",
+  "version": "1.0.0",
+  
+  "bootstrap": {
+    "security": {
+      "allowed_sources": [
+        "https://github.com/myorg/configs/releases/download/*"
+      ],
+      "require_signatures": true,
+      "require_https": true,
+      "trusted_keys": ["0xABCDEF1234567890"]
+    },
+    
+    "remote_configs": [
+      {
+        "name": "GitHub Release v2.1.0",
+        "url": "https://github.com/myorg/configs/releases/download/v2.1.0/prod.json",
+        "checksum_url": "https://github.com/myorg/configs/releases/download/v2.1.0/prod.json.sha256",
+        "signature_url": "https://github.com/myorg/configs/releases/download/v2.1.0/prod.json.asc",
+        "pin": {
+          "type": "tag",
+          "value": "v2.1.0",
+          "repository": "myorg/configs",
+          "require_immutable": true
+        },
+        "verification": {
+          "checksums": {
+            "sha256": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+            "sha512": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          },
+          "gpg_key": "0xABCDEF1234567890",
+          "max_age_seconds": 3600
+        }
+      }
+    ],
+    
+    "ssh": {
+      "targets": [
+        "deploy@web-1.example.com",
+        "deploy@web-2.example.com"
+      ],
+      "parallel": true,
+      "timeout": "3m"
+    }
+  },
+  
+  "platforms": [
+    {
+      "os": "linux",
+      "match": "linux*",
+      "name": "Linux",
+      "distributions": [
+        {
+          "ids": ["alpine"],
+          "name": "Alpine Linux",
+          "install_steps": [
+            {
+              "name": "Verify release deployment",
+              "command": "echo 'Deployed from GitHub Release v2.1.0'"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

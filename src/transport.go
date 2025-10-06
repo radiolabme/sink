@@ -69,35 +69,10 @@ func (lt *LocalTransport) Run(command string) (stdout, stderr string, exitCode i
 	return stdout, stderr, exitCode, err
 }
 
-// getShell determines the best shell to use for command execution
-// Prefers bash (handles more syntax) but falls back to sh (POSIX compatible)
+// getShell returns the shell to use for command execution
 func (lt *LocalTransport) getShell() (string, string) {
 	if runtime.GOOS == "windows" {
 		return "cmd.exe", "/C"
 	}
-
-	// Prefer bash (most common, handles bash-specific syntax)
-	// ~60% of install scripts use #!/bin/bash, ~30% use bash-specific syntax
-	bashPaths := []string{"/bin/bash", "/usr/bin/bash", "/usr/local/bin/bash"}
-	for _, path := range bashPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path, "-c"
-		}
-	}
-
-	// Fall back to sh (POSIX compatible, always available)
-	// Handles minimal containers, NixOS, and edge cases
-	shPaths := []string{
-		"/bin/sh",
-		"/usr/bin/sh",
-		"/run/current-system/sw/bin/sh", // NixOS
-	}
-	for _, path := range shPaths {
-		if _, err := os.Stat(path); err == nil {
-			return path, "-c"
-		}
-	}
-
-	// Last resort: hope it's in PATH
-	return "sh", "-c"
+	return "/bin/sh", "-c"
 }

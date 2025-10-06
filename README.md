@@ -1,222 +1,290 @@
 # Sink - Shell Installation Kit
 
-A declarative, idempotent shell command execution framework for system configuration and installation tasks.
+Sink is a declarative, idempotent shell command execution framework designed for system configuration and installation tasks. The tool provides a structured approach to managing system dependencies, environment setup, and deployment workflows through JSON-based configuration files.
 
-## Features
+## Overview
 
-- ✅ **Declarative Configuration**: Define steps in JSON with platform-specific commands
-- ✅ **Idempotent Execution**: Checks before running actions to avoid redundant operations
-- ✅ **Cross-Platform**: Supports macOS, Linux, and Windows with platform detection
-- ✅ **Facts System**: Query system state (environment, files, commands) before execution
-- ✅ **Dry-Run Mode**: Preview what would execute without making changes
-- ✅ **Execution Context**: Always shows WHERE commands will run (host, user, directory)
-- ✅ **Safety Confirmation**: Requires explicit "yes" before real execution
-- ✅ **Event System**: Real-time progress updates with structured events
-- ✅ **Zero Dependencies**: Pure Go stdlib implementation
+Modern system administration requires repeatable, reliable installation procedures that work across different platforms and environments. Sink addresses this need by providing a framework where operations are defined declaratively, checked for completion before execution, and safely previewed before making any system changes.
 
-## Project Structure
+The framework is built entirely on the Go standard library with zero external dependencies, making it easy to distribute and deploy. Configuration files describe the desired system state using platform-specific commands, while the execution engine ensures operations are idempotent and provides real-time feedback through a structured event system.
 
-```
-sink/
-├── src/              # Go source files
-│   ├── main.go       # CLI entry point
-│   ├── executor.go   # Core execution engine
-│   ├── config.go     # Configuration parsing
-│   ├── facts.go      # Facts system
-│   ├── transport.go  # Command execution layer
-│   ├── types.go      # Type definitions
-│   └── *_test.go     # Test files
-├── bin/              # Built binaries
-│   └── sink          # Compiled binary
-├── data/             # Configuration files
-│   ├── install-config.json           # Example config
-│   ├── install-config-with-facts.json # Config with facts
-│   ├── demo-config.json              # Demo configuration
-│   └── install-config.schema.json    # JSON schema
-├── docs/             # Documentation
-│   ├── EXECUTION_CONTEXT_SAFETY.md   # Safety features
-│   ├── REST_AND_SSH.md               # Future features guide
-│   └── *.md                          # Additional docs
-└── test/             # Test artifacts (coverage, logs)
-    ├── coverage.out  # Coverage data
-    └── coverage.html # Coverage report
-```
+## Core Features
+
+Sink configurations are declarative JSON documents that define installation steps for specific platforms. The framework automatically detects the host platform and executes only the relevant steps. Before any action is taken, Sink checks whether the target state already exists, preventing redundant operations and ensuring safe re-execution.
+
+The facts system allows configurations to query system state, such as available CPU cores, installed software versions, or environment variables. These facts can be referenced throughout the configuration using template syntax, enabling dynamic and context-aware installations.
+
+Dry-run mode provides a complete preview of planned operations without making any changes. This includes showing which commands would execute, in what order, and with what context. Every execution displays the host, user, working directory, and platform details before proceeding.
+
+Safety is enforced through explicit user confirmation. The system always requires an affirmative "yes" response before executing commands in non-dry-run mode. The execution context is displayed prominently to prevent accidental operations on the wrong host or with incorrect permissions.
+
+Cross-platform support is built into the configuration format. A single configuration file can define different installation procedures for macOS, Linux distributions, and Windows, with automatic platform detection selecting the appropriate steps at runtime.
+
+## Project Organization
+
+The project follows a conventional Go structure with clear separation between source code, documentation, configuration files, and build artifacts.
+
+Source code resides in the `src/` directory and includes the main entry point, configuration parser, execution engine, facts system, transport layer for command execution, and comprehensive test files. The JSON schema is embedded directly in the binary, eliminating external file dependencies.
+
+Built binaries are placed in `bin/` after compilation. The `data/` directory contains example configurations demonstrating various patterns, from simple installations to complex multi-step setups with facts and conditionals. The schema file is maintained both embedded in the binary and as a reference copy for development tools.
+
+Documentation is organized in `docs/` with focused guides on safety features, execution context, and planned future enhancements. Test artifacts including coverage reports and logs are stored in `test/` for analysis and debugging.
 
 ## Quick Start
 
-### Build
+Building Sink requires Go 1.19 or later. The project includes a Makefile with common operations, or you can use Go commands directly:
 
 ```bash
 make build
-# or
+```
+
+Alternatively:
+
+```bash
 go build -o bin/sink ./src/...
 ```
 
-### Run (Dry-Run)
+Once built, configurations can be validated, previewed, and executed. Start by previewing an example configuration in dry-run mode:
 
 ```bash
 ./bin/sink execute data/install-config.json --dry-run
 ```
 
-### Run (Real Execution)
+The dry-run output shows the execution plan without making changes. This includes the platform detected, steps that would run, and any facts that would be gathered. To proceed with actual execution:
 
 ```bash
 ./bin/sink execute data/install-config.json
-# You'll see:
-# 🔍 Execution Context:
-#    Host:      your-hostname
-#    User:      your-username
-#    ...
-# ⚠️  You are about to execute N steps on your-hostname as your-username
-#    Continue? [yes/no]: yes
 ```
 
-### Test
+The system will display the execution context including hostname, current user, working directory, operating system, and architecture. A confirmation prompt requires an explicit "yes" response before proceeding.
+
+Running tests verifies the installation and provides confidence in the build:
 
 ```bash
 make test
-# or
-go test ./src/... -v
 ```
 
-### Coverage
+For detailed coverage analysis:
 
 ```bash
 make coverage
-# or
-make coverage-html  # Opens HTML report
+make coverage-html
+open test/coverage.html
 ```
 
-## Configuration Format
+## Configuration Basics
+
+Configurations are JSON documents with a version field and platform-specific installation definitions. The simplest configuration specifies steps for a single platform:
 
 ```json
 {
   "version": "1.0",
   "name": "Example Installation",
-  "steps": [
-    {
-      "name": "Check Homebrew",
-      "check": {
-        "command": "which brew"
-      },
-      "action": {
-        "macos": "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+  "platforms": [{
+    "name": "macOS",
+    "os": "darwin",
+    "match": ".*",
+    "install_steps": [
+      {
+        "name": "Check Homebrew",
+        "check": "command -v brew",
+        "on_missing": [
+          {
+            "command": "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+          }
+        ]
       }
-    }
-  ]
+    ]
+  }]
 }
 ```
 
-### With Facts
+This configuration demonstrates the check-remediate pattern. The system first runs the check command. If it succeeds (exit code 0), the step is skipped since Homebrew is already installed. If it fails, the remediation commands in `on_missing` are executed.
+
+The facts system enables dynamic configuration based on system state. Facts are gathered before step execution and can be referenced using template syntax:
 
 ```json
 {
   "version": "1.0",
   "name": "Conditional Installation",
-  "steps": [
-    {
-      "name": "Install package {{package}}",
-      "facts": {
-        "package": {
-          "env": "PACKAGE_NAME",
-          "default": "vim"
-        }
-      },
-      "check": {
-        "command": "which {{package}}"
-      },
-      "action": {
-        "macos": "brew install {{package}}",
-        "linux": "apt-get install -y {{package}}"
-      }
+  "facts": {
+    "package_name": {
+      "command": "echo ${PACKAGE_NAME:-vim}"
     }
-  ]
+  },
+  "platforms": [{
+    "name": "macOS",
+    "os": "darwin",
+    "match": ".*",
+    "install_steps": [
+      {
+        "name": "Install {{facts.package_name}}",
+        "check": "command -v {{facts.package_name}}",
+        "on_missing": [
+          {"command": "brew install {{facts.package_name}}"}
+        ]
+      }
+    ]
+  }]
 }
 ```
 
-## Makefile Targets
+Facts can query environment variables, execute commands, or read files. The results are available throughout the configuration, enabling patterns like conditional installation, resource-aware configuration, and template-based command generation.
 
-- `make build` - Build the binary
-- `make test` - Run all tests
-- `make coverage` - Run tests with coverage
-- `make coverage-html` - Generate HTML coverage report
-- `make clean` - Remove build artifacts
-- `make install` - Install to /usr/local/bin
-- `make demo` - Run demo config (dry-run)
-- `make help` - Show all targets
+## Command Line Interface
 
-## Execution Context Safety
-
-Sink always discovers and displays the execution context before running commands:
-
-- **Host**: Hostname where commands execute
-- **User**: Current user
-- **Work Dir**: Current working directory
-- **OS/Arch**: Operating system and architecture
-- **Transport**: Execution method (local, ssh, etc.)
-
-This prevents accidentally running commands on the wrong host or as the wrong user.
-
-## Testing
-
-- **116 tests** covering all major functionality
-- **~51% code coverage** (50.8% after reorganization)
-- Tests include: unit tests, integration tests, edge cases, context tests
-- Run with: `make test` or `go test ./src/... -v`
-
-## Development
-
-### Run Tests in Watch Mode
+Sink provides several commands for working with configurations. General help is available through:
 
 ```bash
-# Using watchexec (install with: brew install watchexec)
-watchexec -e go -c clear -- go test ./src/... -v
+sink --help
+sink help
 ```
 
-### Debug with Verbose Output
+Command-specific help can be accessed in two ways:
 
 ```bash
-./bin/sink execute data/install-config.json --dry-run -v
+sink help execute
+sink execute --help
 ```
 
-### View Coverage Report
+The execute command runs a configuration file with optional platform override and dry-run mode:
+
+```bash
+sink execute config.json
+sink execute config.json --dry-run
+sink execute config.json --platform linux
+```
+
+Validation checks configuration syntax against the JSON schema:
+
+```bash
+sink validate config.json
+```
+
+The facts command shows what facts would be gathered without executing any steps:
+
+```bash
+sink facts config.json
+```
+
+The schema can be output for use with editors and validation tools:
+
+```bash
+sink schema > sink.schema.json
+```
+
+Version information is available through:
+
+```bash
+sink version
+```
+
+Comprehensive help documentation for the CLI system is available in `docs/CLI_HELP_SYSTEM.md`.
+
+## Testing and Quality
+
+The project maintains comprehensive test coverage with over 270 test cases covering unit tests, integration scenarios, edge cases, and execution context validation. Tests can be run through the Makefile or directly with Go:
+
+```bash
+make test
+```
+
+Or:
+
+```bash
+go test ./src/... -v
+```
+
+Coverage reports help identify untested code paths:
+
+```bash
+make coverage
+```
+
+The HTML coverage report provides detailed visualization:
 
 ```bash
 make coverage-html
 open test/coverage.html
 ```
 
-## Architecture
+Current test coverage stands at approximately 53% of statements, with critical validation functions at 100% coverage. The test suite includes thorough validation of configuration parsing, platform detection, fact gathering, step execution, and error handling.
 
-### Core Components
+## Development Workflow
 
-1. **Executor**: Orchestrates step execution with context discovery
-2. **Transport**: Abstracts command execution (local, future: SSH)
-3. **Facts**: Template variable resolution from environment/files/commands
-4. **Config**: JSON-based declarative configuration
-5. **Events**: Real-time execution progress callbacks
+During development, automated test execution on file changes streamlines the feedback loop. Using watchexec:
 
-### Key Design Principles
+```bash
+watchexec -e go -c clear -- go test ./src/... -v
+```
 
-- **Zero Dependencies**: Only Go stdlib
-- **Idempotency**: Check before action
-- **Safety First**: Context display + confirmation
-- **Testability**: Comprehensive test coverage
-- **Extensibility**: Interface-based transport system
+Verbose execution output aids in debugging configuration issues:
 
-## Future Enhancements
+```bash
+./bin/sink execute data/install-config.json --dry-run -v
+```
 
-See `docs/REST_AND_SSH.md` for planned features:
+The Makefile provides additional targets for common operations:
 
-- **SSH Transport**: Remote execution over SSH
-- **REST API**: HTTP server with SSE streaming
-- **Execution Guards**: Config-based safety rules (hostname patterns, user restrictions)
-- **Enhanced Logging**: Full audit trails
+```bash
+make build        # Compile the binary
+make test         # Run all tests
+make coverage     # Generate coverage report
+make coverage-html # Create HTML coverage visualization
+make clean        # Remove build artifacts
+make install      # Install to /usr/local/bin
+make demo         # Run demo configuration in dry-run
+make help         # Show all available targets
+```
 
-## License
+## System Architecture
 
-[Add your license here]
+Sink is designed around five core components that work together to provide safe, repeatable system configuration.
+
+The executor orchestrates step execution with full context discovery. Before running any commands, it gathers information about the host, user, working directory, and platform. This context is displayed and confirmed before proceeding.
+
+The transport layer abstracts command execution, currently supporting local execution with plans for SSH support. This abstraction allows the same configuration to target local or remote systems without modification.
+
+The facts system resolves template variables from various sources including environment variables, command output, and file contents. Facts are gathered once at the beginning of execution and remain constant throughout.
+
+Configuration management handles JSON parsing, validation against the embedded schema, and platform selection. The platform detection logic automatically selects the appropriate installation steps based on the current operating system and distribution.
+
+The event system provides real-time progress updates through structured callbacks. This enables rich output formatting, progress indicators, and integration with external monitoring systems.
+
+## Design Principles
+
+The framework follows several key principles that guide its implementation and use.
+
+Zero external dependencies ensure easy distribution. The entire system is built on the Go standard library, requiring no package management or dependency resolution at runtime.
+
+Idempotency is enforced through the check-before-action pattern. Every operation should verify whether the desired state exists before attempting changes. This allows configurations to be run multiple times safely.
+
+Safety takes precedence through context display and explicit confirmation. The system shows exactly where and how commands will execute, requiring affirmative user action before proceeding.
+
+Comprehensive testing provides confidence in reliability. The test suite covers core functionality, edge cases, and integration scenarios, with continuous focus on improving coverage.
+
+Interface-based design enables extension. The transport system uses interfaces allowing new execution backends to be added without modifying core logic.
+
+## Future Development
+
+Several enhancements are planned to extend Sink's capabilities beyond local execution.
+
+SSH transport will enable remote system configuration through secure channels. The same configurations that work locally will be deployable to remote hosts over SSH connections.
+
+A REST API will provide HTTP access to Sink functionality with Server-Sent Events for real-time progress streaming. This enables web-based interfaces and integration with deployment orchestration systems.
+
+Execution guards will add configuration-based safety rules. These rules can restrict execution based on hostname patterns, user requirements, or custom validation logic, preventing accidental deployment to production systems.
+
+Enhanced logging capabilities will provide full audit trails of all operations, including command execution, output capture, and timing information. This supports compliance requirements and troubleshooting.
+
+Detailed plans for these features are documented in `docs/REST_AND_SSH.md`.
+
+## Makefile Reference
+
+The Makefile automates common development tasks. Building the project requires running `make build`, which compiles the source code into the `bin/sink` binary. During development, `make test` executes the full test suite to verify functionality, while `make coverage` and `make coverage-html` generate coverage statistics and visual reports respectively.
+
+Maintenance operations include `make clean` to remove build artifacts and test output, and `make install` to copy the binary to `/usr/local/bin` for system-wide access. The `make demo` target runs a demonstration configuration in dry-run mode for safe exploration, and `make help` displays all available targets with detailed descriptions.
 
 ## Contributing
 
-[Add contribution guidelines here]
+Contributions follow standard Go project conventions. All changes must include appropriate tests to maintain or improve code coverage. Code style should match existing patterns throughout the project. Documentation updates must accompany functional changes to keep the project accessible and maintainable.

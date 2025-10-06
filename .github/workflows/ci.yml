@@ -1,0 +1,349 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go-version: ['1.21', '1.22']
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: |
+        cd src
+        go mod download
+
+    - name: Run tests
+      run: make test
+
+    - name: Run tests with coverage
+      run: make coverage
+
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.22'
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./test/coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  build:
+    name: Build
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Build binary
+      run: make build
+
+    - name: Verify binary works
+      run: |
+        ./bin/sink version
+        ./bin/sink help
+
+    - name: Test schema command
+      run: |
+        ./bin/sink schema > /tmp/schema.json
+        test -s /tmp/schema.json
+        echo "✅ Schema command works"
+
+    - name: Upload binary artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: sink-${{ matrix.os }}
+        path: bin/sink
+        retention-days: 7
+
+  validate:
+    name: Validate Configurations
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Build binary
+      run: make build
+
+    - name: Validate all data configs
+      run: |
+        for file in data/*.json; do
+          [[ "$file" =~ schema\.json$ ]] && continue
+          [[ "$file" =~ vps-sizes\.json$ ]] && continue
+          echo "Validating $file..."
+          ./bin/sink validate "$file"
+        done
+
+    - name: Validate all example configs
+      run: |
+        for file in examples/*.json; do
+          [[ "$file" =~ vps-sizes\.json$ ]] && continue
+          echo "Validating $file..."
+          ./bin/sink validate "$file"
+        done
+
+    - name: Validate all test configs
+      run: |
+        for file in test/*.json; do
+          [[ "$file" =~ schema\.json$ ]] && continue
+          echo "Validating $file..."
+          ./bin/sink validate "$file"
+        done
+
+    - name: Run dry-run tests
+      run: |
+        echo "Testing demo config..."
+        ./bin/sink execute data/demo-config.json --dry-run
+        echo "Testing install config..."
+        ./bin/sink execute data/install-config.json --dry-run
+        echo "Testing platform dependencies..."
+        ./bin/sink execute examples/platform-dependencies.json --dry-run
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Run go vet
+      run: |
+        cd src
+        go vet ./...
+
+    - name: Run go fmt check
+      run: |
+        cd src
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "Code is not formatted. Please run 'go fmt ./...'"
+          gofmt -s -l .
+          exit 1
+        fi
+
+    - name: Check for go.mod/go.sum changes
+      run: |
+        cd src
+        go mod tidy
+        if ! git diff --exit-code go.mod go.sum; then
+          echo "go.mod or go.sum needs updates. Please run 'go mod tidy'"
+          exit 1
+        fi
+
+  schema-validation:
+    name: Schema Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Build binary
+      run: make build
+
+    - name: Verify schema embedding
+      run: |
+        echo "Checking schema embedding..."
+        if ! diff -q src/sink.schema.json <(./bin/sink schema); then
+          echo "❌ Embedded schema does not match source!"
+          echo "This should never happen - the build process may be broken."
+          exit 1
+        fi
+        echo "✅ Schema embedding verified"
+
+    - name: Verify data/sink.schema.json is in sync
+      run: |
+        echo "Checking data/sink.schema.json sync..."
+        if ! diff -q src/sink.schema.json data/sink.schema.json; then
+          echo "⚠️ data/sink.schema.json is out of sync with src/sink.schema.json"
+          echo "Run: cp src/sink.schema.json data/sink.schema.json"
+          exit 1
+        fi
+        echo "✅ data/sink.schema.json is in sync"
+
+    - name: Validate schema is valid JSON
+      run: |
+        echo "Validating schema JSON..."
+        if ! python3 -m json.tool src/sink.schema.json > /dev/null; then
+          echo "❌ Schema is not valid JSON!"
+          exit 1
+        fi
+        echo "✅ Schema is valid JSON"
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Build binary
+      run: make build
+
+    - name: Test facts command
+      run: |
+        echo "Testing facts command..."
+        ./bin/sink facts data/install-config-with-facts.json
+
+    - name: Test validate command
+      run: |
+        echo "Testing validate command..."
+        ./bin/sink validate data/demo-config.json
+
+    - name: Test execute with dry-run
+      run: |
+        echo "Testing execute with dry-run..."
+        ./bin/sink execute data/demo-config.json --dry-run
+
+    - name: Test help commands
+      run: |
+        ./bin/sink help
+        ./bin/sink help execute
+        ./bin/sink help validate
+        ./bin/sink help facts
+        ./bin/sink help bootstrap
+        ./bin/sink help schema
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Run govulncheck
+      run: |
+        cd src
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...
+
+    - name: Run go security checker
+      uses: securego/gosec@master
+      with:
+        args: '-no-fail -fmt sarif -out results.sarif ./src/...'
+      continue-on-error: true
+
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check for broken markdown links
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        use-quiet-mode: 'yes'
+        config-file: '.github/markdown-link-check-config.json'
+      continue-on-error: true
+
+    - name: Verify README files exist
+      run: |
+        echo "Checking for README files..."
+        test -f README.md || { echo "❌ Missing README.md"; exit 1; }
+        test -f data/README.md || { echo "❌ Missing data/README.md"; exit 1; }
+        test -f examples/README.md || { echo "❌ Missing examples/README.md"; exit 1; }
+        test -f scripts/README.md || { echo "❌ Missing scripts/README.md"; exit 1; }
+        test -f test/README.md || { echo "❌ Missing test/README.md"; exit 1; }
+        echo "✅ All README files present"
+
+    - name: Check for TODO comments in code
+      run: |
+        cd src
+        if grep -r "TODO\|FIXME\|XXX\|HACK" --include="*.go" .; then
+          echo "⚠️ Found TODO/FIXME comments in code"
+        else
+          echo "✅ No TODO/FIXME comments found"
+        fi
+      continue-on-error: true
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [test, build, validate, lint, schema-validation, integration, security, documentation]
+    if: always()
+    
+    steps:
+    - name: Check CI status
+      run: |
+        echo "## CI Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "All CI checks completed." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- Test: ${{ needs.test.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Build: ${{ needs.build.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Validate: ${{ needs.validate.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Lint: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Schema: ${{ needs.schema-validation.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Integration: ${{ needs.integration.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Security: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Documentation: ${{ needs.documentation.result }}" >> $GITHUB_STEP_SUMMARY

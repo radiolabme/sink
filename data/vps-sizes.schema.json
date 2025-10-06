@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/koto/vps-sizes.schema.json",
+  "title": "VPS Sizes Configuration",
+  "description": "Schema for defining VPS instance sizes",
+  "type": "object",
+  "required": ["sizes"],
+  "properties": {
+    "description": {
+      "type": "string",
+      "description": "Description of this configuration file"
+    },
+    "sizes": {
+      "type": "array",
+      "description": "Array of predefined VPS sizes",
+      "items": {
+        "$ref": "#/$defs/size"
+      },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "size": {
+      "type": "object",
+      "description": "A VPS instance size definition",
+      "required": ["name", "cpus", "memory", "disk"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Size name (nano, micro, small, medium, large, xlarge, 2xlarge)",
+          "pattern": "^[a-z0-9]+$"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this size"
+        },
+        "cpus": {
+          "type": "integer",
+          "description": "Number of CPU cores",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "memory": {
+          "type": "integer",
+          "description": "Memory in GB",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "disk": {
+          "type": "integer",
+          "description": "Disk size in GB",
+          "minimum": 10,
+          "maximum": 10000
+        },
+        "use_cases": {
+          "type": "array",
+          "description": "Example use cases for this size",
+          "items": {
+            "type": "string"
+          }
+        },
+        "comparable_to": {
+          "type": "array",
+          "description": "Comparable offerings from cloud providers",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

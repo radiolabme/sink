@@ -1,0 +1,131 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "description": "Configure Colima with Docker runtime and auto-sized resources (20% system cap)",
+  "version": "1.0.0",
+  "facts": {
+    "cpu_count": {
+      "command": "[ $(uname) = 'Darwin' ] && sysctl -n hw.ncpu || nproc",
+      "description": "Total CPU cores"
+    },
+    "total_ram_gb": {
+      "command": "[ $(uname) = 'Darwin' ] && echo $(($(sysctl -n hw.memsize) / 1024 / 1024 / 1024)) || free -g | awk '/^Mem:/{print $2}'",
+      "description": "Total RAM in GB"
+    },
+    "max_cpus": {
+      "command": "echo $(( {{facts.cpu_count}} / 5 ))",
+      "description": "20% of CPU cores (minimum 1)"
+    },
+    "max_ram_gb": {
+      "command": "echo $(( {{facts.total_ram_gb}} / 5 ))",
+      "description": "20% of total RAM in GB (minimum 2)"
+    },
+    "allocated_cpus": {
+      "command": "[ {{facts.max_cpus}} -lt 1 ] && echo 1 || echo {{facts.max_cpus}}",
+      "description": "Allocated CPUs (at least 1)"
+    },
+    "allocated_ram": {
+      "command": "[ {{facts.max_ram_gb}} -lt 2 ] && echo 2 || echo {{facts.max_ram_gb}}",
+      "description": "Allocated RAM in GB (at least 2)"
+    },
+    "disk_gb": {
+      "command": "echo 60",
+      "description": "Disk size in GB"
+    }
+  },
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS",
+      "install_steps": [
+        {
+          "name": "Check Colima installation",
+          "check": "command -v colima",
+          "error": "Error: Colima is not installed. Please run colima-setup.json first."
+        },
+        {
+          "name": "Check if Colima is already running",
+          "check": "colima status 2>/dev/null | grep -q 'colima is running'",
+          "on_missing": [
+            {
+              "name": "Start Colima with Docker runtime",
+              "command": "colima start --cpu {{facts.allocated_cpus}} --memory {{facts.allocated_ram}} --disk {{facts.disk_gb}} --runtime docker",
+              "error": "Failed to start Colima. Check logs with: colima logs"
+            },
+            {
+              "name": "Wait for Docker to be ready",
+              "command": "docker info > /dev/null 2>&1",
+              "retry": "until",
+              "timeout": "60s"
+            }
+          ]
+        },
+        {
+          "name": "Verify Docker runtime in Colima",
+          "check": "colima status | grep -q 'runtime: docker'",
+          "on_missing": [
+            {
+              "name": "Switch to Docker runtime",
+              "command": "colima delete -f && colima start --cpu {{facts.allocated_cpus}} --memory {{facts.allocated_ram}} --disk {{facts.disk_gb}} --runtime docker",
+              "error": "Failed to switch to Docker runtime. Manual intervention may be required."
+            }
+          ]
+        },
+        {
+          "name": "Verify Docker is functional",
+          "command": "docker run --rm hello-world",
+          "error": "Docker is running but cannot execute containers. Check Docker configuration."
+        }
+      ]
+    },
+    {
+      "os": "linux",
+      "match": "linux*",
+      "name": "Linux",
+      "distributions": [
+        {
+          "ids": ["ubuntu", "debian", "fedora", "rhel", "centos", "rocky", "almalinux"],
+          "name": "Linux (All Distributions)",
+          "install_steps": [
+            {
+              "name": "Check if native Docker is available",
+              "check": "systemctl is-active docker.service 2>/dev/null | grep -q '^active$'",
+              "on_missing": [
+                {
+                  "name": "Check Colima installation",
+                  "check": "command -v colima",
+                  "error": "Error: Neither native Docker nor Colima is installed. Install Docker natively or run colima-setup.json."
+                },
+                {
+                  "name": "Check if Colima is running",
+                  "check": "colima status 2>/dev/null | grep -q 'colima is running'",
+                  "on_missing": [
+                    {
+                      "name": "Start Colima with Docker runtime",
+                      "command": "colima start --cpu {{facts.allocated_cpus}} --memory {{facts.allocated_ram}} --disk {{facts.disk_gb}} --runtime docker",
+                      "error": "Failed to start Colima. Check logs with: colima logs"
+                    }
+                  ]
+                },
+                {
+                  "name": "Wait for Docker to be ready",
+                  "command": "docker info > /dev/null 2>&1",
+                  "retry": "until",
+                  "timeout": "60s"
+                }
+              ]
+            },
+            {
+              "name": "Verify Docker is functional",
+              "command": "docker run --rm hello-world",
+              "error": "Docker is running but cannot execute containers. Check Docker configuration."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fallback": {
+    "error": "Unsupported operating system. This configuration requires macOS or Linux."
+  }
+}

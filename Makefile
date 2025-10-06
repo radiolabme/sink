@@ -36,7 +36,7 @@ coverage-html: coverage
 clean:
 	@echo "Cleaning..."
 	@rm -f bin/sink
-	@rm -rf test/coverage.out test/coverage.html test/*.log test/*.tmp
+	@rm -f test/coverage.out test/coverage.html test/coverage-new.out test/*.log test/*.tmp
 	@echo "✅ Clean complete"
 
 # Install to /usr/local/bin (requires sudo)
@@ -64,7 +64,7 @@ help:
 	@echo "  make test            - Run all tests"
 	@echo "  make coverage        - Run tests with coverage report"
 	@echo "  make coverage-html   - Generate HTML coverage report"
-	@echo "  make clean           - Remove build artifacts"
+	@echo "  make clean           - Remove build artifacts and coverage files"
 	@echo "  make install         - Install to /usr/local/bin (requires sudo)"
 	@echo "  make demo            - Run demo config (dry-run)"
 	@echo "  make demo-install    - Run install config (dry-run)"
@@ -75,4 +75,6 @@ help:
 	@echo "  bin/       - Built binaries"
 	@echo "  data/      - Configuration files and schemas"
 	@echo "  docs/      - Documentation"
-	@echo "  test/      - (empty - tests are in src/)"
+	@echo "  examples/  - Example configurations"
+	@echo "  test/      - Test configurations and coverage reports"
+	@echo "  scripts/   - Utility scripts (bootstrap-remote.sh)"

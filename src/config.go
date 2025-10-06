@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -23,11 +24,23 @@ var (
 	}
 )
 
-// LoadConfig loads and validates a configuration from a JSON file
+// LoadConfig loads and validates a configuration from a JSON file or stdin
+// Use "-" as filename to read from stdin
 func LoadConfig(filename string) (*Config, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+	var data []byte
+	var err error
+
+	if filename == "-" {
+		// Read from stdin (cross-platform)
+		data, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read from stdin: %w", err)
+		}
+	} else {
+		data, err = os.ReadFile(filename)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
 	}
 
 	var config Config
