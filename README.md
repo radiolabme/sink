@@ -32,7 +32,7 @@ Documentation is organized in `docs/` with focused guides on safety features, ex
 
 ## Quick Start
 
-Building Sink requires Go 1.19 or later and Make. If you don't have these tools installed, run the setup script to install them locally:
+Building Sink requires Go 1.23 or later and Make. If you don't have these tools installed, run the setup script to install them locally:
 
 ```bash
 ./setup.sh

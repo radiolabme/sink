@@ -137,7 +137,7 @@ sudo apk add make gcc musl-dev
 
 ### Go version too old
 
-Sink requires Go 1.19 or later. If your system has an older version, the setup script will install Go 1.22.0 locally to `.tools/go/`. Run `source .envrc` to use the local version.
+Sink requires Go 1.23 or later. If your system has an older version, the setup script will install Go 1.23.4 locally to `.tools/go/`. Run `source .envrc` to use the local version.
 
 ## Clean Installation
 

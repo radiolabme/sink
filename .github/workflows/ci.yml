@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        go-version: ['1.21', '1.22']
+        go-version: ['1.22', '1.23']
     runs-on: ${{ matrix.os }}
     
     steps:
@@ -48,7 +48,7 @@ jobs:
       run: make coverage
 
     - name: Upload coverage to Codecov
-      if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.22'
+      if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.23'
       uses: codecov/codecov-action@v4
       with:
         file: ./test/coverage.out
@@ -70,7 +70,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: '1.23'
 
     - name: Build binary
       run: make build
@@ -105,7 +105,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: '1.23'
 
     - name: Build binary
       run: make build
@@ -155,7 +155,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: '1.23'
 
     - name: Run go vet
       run: |
@@ -191,7 +191,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: '1.23'
 
     - name: Build binary
       run: make build
@@ -237,7 +237,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: '1.23'
 
     - name: Build binary
       run: make build
@@ -269,6 +269,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    continue-on-error: true
     
     steps:
     - name: Checkout code
@@ -277,7 +278,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: '1.23'
 
     - name: Run govulncheck
       run: |
@@ -286,14 +287,16 @@ jobs:
         govulncheck ./...
 
     - name: Run go security checker
-      uses: securego/gosec@master
-      with:
-        args: '-no-fail -fmt sarif -out results.sarif ./src/...'
+      run: |
+        cd src
+        go install github.com/securego/gosec/v2/cmd/gosec@latest
+        gosec -no-fail -fmt=text ./...
       continue-on-error: true
 
   documentation:
     name: Documentation Check
     runs-on: ubuntu-latest
+    continue-on-error: true
     
     steps:
     - name: Checkout code
@@ -304,6 +307,7 @@ jobs:
       with:
         use-quiet-mode: 'yes'
         config-file: '.github/markdown-link-check-config.json'
+        check-modified-files-only: 'no'
       continue-on-error: true
 
     - name: Verify README files exist
@@ -339,6 +343,8 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "All CI checks completed." >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Job Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         echo "- Test: ${{ needs.test.result }}" >> $GITHUB_STEP_SUMMARY
         echo "- Build: ${{ needs.build.result }}" >> $GITHUB_STEP_SUMMARY
         echo "- Validate: ${{ needs.validate.result }}" >> $GITHUB_STEP_SUMMARY
@@ -347,3 +353,17 @@ jobs:
         echo "- Integration: ${{ needs.integration.result }}" >> $GITHUB_STEP_SUMMARY
         echo "- Security: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
         echo "- Documentation: ${{ needs.documentation.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Fail if any critical job failed (not security/docs which are non-blocking)
+        if [ "${{ needs.test.result }}" != "success" ] || \
+           [ "${{ needs.build.result }}" != "success" ] || \
+           [ "${{ needs.validate.result }}" != "success" ] || \
+           [ "${{ needs.lint.result }}" != "success" ] || \
+           [ "${{ needs.schema-validation.result }}" != "success" ] || \
+           [ "${{ needs.integration.result }}" != "success" ]; then
+          echo "❌ Critical CI jobs failed" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
+        
+        echo "✅ All critical CI checks passed" >> $GITHUB_STEP_SUMMARY

@@ -19,7 +19,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOOLS_DIR="${SCRIPT_DIR}/.tools"
-GO_VERSION="1.22.0"
+GO_VERSION="1.23.4"
 
 # Colors for output
 RED='\033[0;31m'
