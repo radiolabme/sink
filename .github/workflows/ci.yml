@@ -137,12 +137,17 @@ jobs:
 
     - name: Run dry-run tests
       run: |
-        echo "Testing demo config..."
-        ./bin/sink execute data/demo-config.json --dry-run
+        echo "Testing configs with Linux support..."
         echo "Testing install config..."
         ./bin/sink execute data/install-config.json --dry-run
+        echo "Testing install config with facts..."
+        ./bin/sink execute data/install-config-with-facts.json --dry-run
         echo "Testing platform dependencies..."
         ./bin/sink execute examples/platform-dependencies.json --dry-run
+        echo "Testing colima setup..."
+        ./bin/sink execute examples/colima-setup.json --dry-run
+        echo "Testing bootstrap commit..."
+        ./bin/sink execute examples/bootstrap-github-commit.json --dry-run
 
   lint:
     name: Lint
@@ -175,7 +180,8 @@ jobs:
       run: |
         cd src
         go mod tidy
-        if ! git diff --exit-code go.mod go.sum; then
+        cd ..
+        if ! git diff --exit-code src/go.mod src/go.sum; then
           echo "go.mod or go.sum needs updates. Please run 'go mod tidy'"
           exit 1
         fi
@@ -254,8 +260,8 @@ jobs:
 
     - name: Test execute with dry-run
       run: |
-        echo "Testing execute with dry-run..."
-        ./bin/sink execute data/demo-config.json --dry-run
+        echo "Testing execute with dry-run (Linux-compatible config)..."
+        ./bin/sink execute data/install-config.json --dry-run
 
     - name: Test help commands
       run: |
@@ -315,7 +321,7 @@ jobs:
         echo "Checking for README files..."
         test -f README.md || { echo "❌ Missing README.md"; exit 1; }
         test -f data/README.md || { echo "❌ Missing data/README.md"; exit 1; }
-        test -f examples/README.md || { echo "❌ Missing examples/README.md"; exit 1; }
+        test -f docs/README.md || { echo "❌ Missing docs/README.md"; exit 1; }
         test -f scripts/README.md || { echo "❌ Missing scripts/README.md"; exit 1; }
         test -f test/README.md || { echo "❌ Missing test/README.md"; exit 1; }
         echo "✅ All README files present"

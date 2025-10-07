@@ -21,7 +21,7 @@ Runs on every push to `main`/`develop` branches and all pull requests.
 
 3. **Validate Configurations**
    - Validates all JSON configs in `data/`, `examples/`, `test/`
-   - Runs dry-run tests on example configs
+   - Runs dry-run tests on configs with Linux support (CI runs on Ubuntu)
    - Ensures configs match schema
 
 4. **Lint**
