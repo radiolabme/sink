@@ -137,7 +137,7 @@ jobs:
         echo "Schema published for version ${{ steps.get_version.outputs.VERSION }}" > pages/index.html
 
     - name: Upload Pages artifact
-      uses: actions/upload-pages-artifact@v3
+      uses: actions/upload-pages-artifact@v4
       with:
         path: pages
       continue-on-error: true
