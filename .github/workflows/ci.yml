@@ -178,10 +178,8 @@ jobs:
 
     - name: Check for go.mod/go.sum changes
       run: |
-        cd src
         go mod tidy
-        cd ..
-        if ! git diff --exit-code src/go.mod src/go.sum; then
+        if ! git diff --exit-code go.mod $(test -f go.sum && echo "go.sum"); then
           echo "go.mod or go.sum needs updates. Please run 'go mod tidy'"
           exit 1
         fi
