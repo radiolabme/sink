@@ -1,0 +1,88 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "description": "Linux distribution-specific package installation",
+  "version": "1.0.0",
+  "platforms": [
+    {
+      "os": "linux",
+      "match": "linux*",
+      "name": "Linux",
+      "distributions": [
+        {
+          "ids": ["ubuntu", "debian"],
+          "name": "Ubuntu/Debian",
+          "install_steps": [
+            {
+              "name": "Update package list",
+              "command": "sudo apt-get update -qq"
+            },
+            {
+              "name": "Install curl",
+              "check": "command -v curl",
+              "on_missing": [
+                {
+                  "name": "Install curl via apt",
+                  "command": "sudo apt-get install -y curl"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "ids": ["fedora", "rhel", "centos", "rocky", "almalinux"],
+          "name": "Red Hat Family",
+          "install_steps": [
+            {
+              "name": "Install curl",
+              "check": "command -v curl",
+              "on_missing": [
+                {
+                  "name": "Install curl via dnf",
+                  "command": "sudo dnf install -y curl"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "ids": ["alpine"],
+          "name": "Alpine Linux",
+          "install_steps": [
+            {
+              "name": "Install curl",
+              "check": "command -v curl",
+              "on_missing": [
+                {
+                  "name": "Install curl via apk",
+                  "command": "sudo apk add curl"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "ids": ["arch", "manjaro"],
+          "name": "Arch Linux",
+          "install_steps": [
+            {
+              "name": "Install curl",
+              "check": "command -v curl",
+              "on_missing": [
+                {
+                  "name": "Install curl via pacman",
+                  "command": "sudo pacman -S --noconfirm curl"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fallback": {
+        "error": "Unsupported Linux distribution. Please install curl manually."
+      }
+    }
+  ],
+  "fallback": {
+    "error": "This configuration is only for Linux systems"
+  }
+}

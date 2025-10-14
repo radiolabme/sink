@@ -1,0 +1,55 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "description": "Fact gathering and template substitution",
+  "version": "1.0.0",
+  "facts": {
+    "hostname": {
+      "type": "string",
+      "command": "hostname",
+      "description": "System hostname",
+      "export": "SINK_HOSTNAME"
+    },
+    "username": {
+      "type": "string",
+      "command": "whoami",
+      "description": "Current user",
+      "export": "SINK_USER"
+    },
+    "os_type": {
+      "type": "string",
+      "command": "uname -s",
+      "description": "Operating system type"
+    },
+    "cpu_count": {
+      "type": "integer",
+      "command": "[ $(uname) = 'Darwin' ] && sysctl -n hw.ncpu || nproc",
+      "description": "Number of CPU cores"
+    },
+    "has_docker": {
+      "type": "boolean",
+      "command": "command -v docker >/dev/null && echo 'true' || echo 'false'",
+      "description": "Docker availability"
+    }
+  },
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS",
+      "install_steps": [
+        {
+          "name": "Display gathered facts",
+          "command": "echo 'Hello {{facts.username}}@{{facts.hostname}}! Running on {{facts.os_type}} with {{facts.cpu_count}} CPUs'"
+        },
+        {
+          "name": "Check Docker status",
+          "command": "echo 'Docker installed: {{facts.has_docker}}'"
+        },
+        {
+          "name": "Environment variables",
+          "command": "echo 'Exported as: $SINK_HOSTNAME and $SINK_USER'"
+        }
+      ]
+    }
+  ]
+}

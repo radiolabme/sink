@@ -1,0 +1,60 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "description": "Using default values for reusable configurations",
+  "version": "1.0.0",
+  "defaults": {
+    "package": "jq",
+    "check_command": "command -v jq",
+    "version_command": "jq --version"
+  },
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS",
+      "install_steps": [
+        {
+          "name": "Check if {{defaults.package}} is installed",
+          "check": "{{defaults.check_command}}",
+          "on_missing": [
+            {
+              "name": "Install {{defaults.package}}",
+              "command": "brew install {{defaults.package}}"
+            }
+          ]
+        },
+        {
+          "name": "Verify {{defaults.package}} installation",
+          "command": "{{defaults.version_command}}"
+        }
+      ]
+    },
+    {
+      "os": "linux",
+      "match": "linux*",
+      "name": "Linux",
+      "distributions": [
+        {
+          "ids": ["ubuntu", "debian"],
+          "name": "Ubuntu/Debian",
+          "install_steps": [
+            {
+              "name": "Check if {{defaults.package}} is installed",
+              "check": "{{defaults.check_command}}",
+              "on_missing": [
+                {
+                  "name": "Install {{defaults.package}}",
+                  "command": "sudo apt-get update -qq && sudo apt-get install -y {{defaults.package}}"
+                }
+              ]
+            },
+            {
+              "name": "Verify {{defaults.package}} installation",
+              "command": "{{defaults.version_command}}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

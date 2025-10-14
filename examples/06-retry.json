@@ -1,0 +1,33 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "description": "Retry logic for handling transient failures",
+  "version": "1.0.0",
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS",
+      "install_steps": [
+        {
+          "name": "Wait for network connectivity",
+          "command": "ping -c 1 8.8.8.8 >/dev/null 2>&1",
+          "retry": "until",
+          "timeout": "30s",
+          "error": "Network not available after 30 seconds"
+        },
+        {
+          "name": "Wait for HTTP service to be ready",
+          "command": "curl -f http://localhost:8080/health >/dev/null 2>&1",
+          "retry": "until",
+          "timeout": "60s"
+        },
+        {
+          "name": "Wait for file to appear",
+          "command": "[ -f /tmp/expected-file.txt ]",
+          "retry": "until",
+          "timeout": "30s"
+        }
+      ]
+    }
+  ]
+}

@@ -142,11 +142,9 @@ jobs:
         ./bin/sink execute data/install-config.json --dry-run
         echo "Testing install config with facts..."
         ./bin/sink execute data/install-config-with-facts.json --dry-run
-        echo "Testing platform dependencies..."
-        ./bin/sink execute examples/platform-dependencies.json --dry-run
-        echo "Testing colima setup..."
-        ./bin/sink execute examples/colima-setup.json --dry-run
-        echo "Testing bootstrap commit..."
+        echo "Testing new examples..."
+        for f in examples/0*.json; do echo "Testing $f..."; ./bin/sink execute "$f" --dry-run; done
+        echo "Testing bootstrap examples..."
         ./bin/sink execute examples/bootstrap-github-commit.json --dry-run
 
   lint:

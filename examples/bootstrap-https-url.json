@@ -1,0 +1,40 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "name": "Bootstrap Example - HTTPS URL",
+  "description": "Example configuration that can be loaded via bootstrap command from HTTPS URLs",
+  "version": "1.0.0",
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS",
+      "install_steps": [
+        {
+          "name": "Check jq installation",
+          "check": "command -v jq",
+          "error": "jq is required. Install with: brew install jq"
+        },
+        {
+          "name": "Display bootstrap success",
+          "command": "echo 'Successfully bootstrapped from remote URL!'"
+        }
+      ]
+    },
+    {
+      "os": "linux",
+      "match": "linux*",
+      "name": "Linux",
+      "install_steps": [
+        {
+          "name": "Check jq installation",
+          "check": "command -v jq",
+          "error": "jq is required. Install with your package manager."
+        },
+        {
+          "name": "Display bootstrap success",
+          "command": "echo 'Successfully bootstrapped from remote URL!'"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "description": "Basic single-platform configuration example",
+  "version": "1.0.0",
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS",
+      "install_steps": [
+        {
+          "name": "Check if jq is installed",
+          "check": "command -v jq",
+          "error": "jq is not installed. Install it with: brew install jq"
+        },
+        {
+          "name": "Verify jq works",
+          "command": "echo '{\"hello\": \"world\"}' | jq ."
+        },
+        {
+          "name": "Print success message",
+          "command": "echo 'Configuration validated successfully!'"
+        }
+      ]
+    }
+  ]
+}

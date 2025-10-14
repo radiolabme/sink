@@ -1,0 +1,55 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "description": "Multi-platform configuration with OS-specific commands",
+  "version": "1.0.0",
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS",
+      "install_steps": [
+        {
+          "name": "Get CPU count (macOS)",
+          "command": "sysctl -n hw.ncpu"
+        },
+        {
+          "name": "Get memory (macOS)",
+          "command": "sysctl -n hw.memsize | awk '{print $1/1024/1024/1024 \" GB\"}'"
+        }
+      ]
+    },
+    {
+      "os": "linux",
+      "match": "linux*",
+      "name": "Linux",
+      "install_steps": [
+        {
+          "name": "Get CPU count (Linux)",
+          "command": "nproc"
+        },
+        {
+          "name": "Get memory (Linux)",
+          "command": "free -h | awk '/^Mem:/{print $2}'"
+        }
+      ]
+    },
+    {
+      "os": "windows",
+      "match": "windows*",
+      "name": "Windows",
+      "install_steps": [
+        {
+          "name": "Get CPU count (Windows)",
+          "command": "echo %NUMBER_OF_PROCESSORS%"
+        },
+        {
+          "name": "Get memory (Windows)",
+          "command": "wmic ComputerSystem get TotalPhysicalMemory"
+        }
+      ]
+    }
+  ],
+  "fallback": {
+    "error": "Unsupported operating system"
+  }
+}

@@ -330,9 +330,6 @@ Examples:
     sink validate "$config" || exit 1
   done
 
-  # Validate bootstrap configuration
-  sink validate examples/bootstrap-github-pinned.json
-
 Schema:
   Configurations are validated against the embedded JSON schema.
   View the schema:
@@ -367,8 +364,6 @@ Description:
   • Platform definitions
   • Fact definitions
   • Install step types
-  • Bootstrap configuration
-  • GitHub URL pinning
 
   Use the schema for:
   • IDE autocompletion (VS Code, IntelliJ, etc.)

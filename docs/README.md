@@ -107,11 +107,24 @@ This attempts the command up to 3 times, failing if all attempts fail within the
 
 ## Getting Started
 
-New users should begin with platform-dependencies.json, which demonstrates the fundamental check-remediate pattern. This example shows how Sink verifies existing system state before attempting installation, ensuring operations can be safely repeated without unwanted side effects. The configuration works across macOS and Linux by detecting the platform and selecting appropriate package managers.
+New users should explore the numbered examples in the `examples/` directory, which demonstrate core Sink patterns progressively:
 
-After understanding basic patterns, lima-setup.json and colima-setup.json show dependency chaining and multi-step installations. These examples demonstrate how complex setups can be broken into idempotent steps that build on each other. The configurations check for required dependencies and install them only when missing, maintaining system consistency throughout the process.
+1. **[01-basic.json](../examples/01-basic.json)** - Simple validation and check-only steps
+2. **[02-multi-platform.json](../examples/02-multi-platform.json)** - Cross-platform support
+3. **[03-distributions.json](../examples/03-distributions.json)** - Linux distribution detection
+4. **[04-facts.json](../examples/04-facts.json)** - System fact gathering
+5. **[05-nested-steps.json](../examples/05-nested-steps.json)** - Conditional execution patterns
+6. **[06-retry.json](../examples/06-retry.json)** - Retry logic for transient failures
+7. **[07-defaults.json](../examples/07-defaults.json)** - Reusable configuration values
+8. **[08-error-handling.json](../examples/08-error-handling.json)** - Error handling patterns
 
-Advanced examples like colima-docker-runtime.json introduce the facts system for dynamic configuration. This example queries system resources (CPU, RAM) and uses that information to calculate appropriate resource allocations, demonstrating how configurations can adapt to their deployment environment without hardcoding values.
+Each example is self-contained and demonstrates one specific Sink feature clearly. For comprehensive explanations, use cases, best practices, and a complete FAQ, see **[examples/FAQ.md](../examples/FAQ.md)**.
+
+Quick validation of all examples:
+
+```bash
+for f in examples/0*.json; do ./bin/sink validate "$f"; done
+```
 
 ## Example Configurations
 
@@ -317,14 +330,13 @@ Sequential execution from shell scripts:
 #!/bin/bash
 set -e  # Exit on any error
 
-sink execute examples/platform-dependencies.json
-sink execute examples/colima-setup.json  
-sink execute examples/colima-docker-runtime.json
+sink execute examples/03-distributions.json
+sink execute examples/05-nested-steps.json
 
 echo "Development environment ready"
 ```
 
-Each configuration performs its checks and only executes necessary operations. If platform-dependencies.json already ran successfully, re-running it completes almost instantly because all checks pass. The `set -e` ensures that if any configuration fails, the script stops immediately rather than attempting subsequent steps that would fail due to missing prerequisites.
+Each configuration performs its checks and only executes necessary operations. If 03-distributions.json already ran successfully, re-running it completes almost instantly because all checks pass. The `set -e` ensures that if any configuration fails, the script stops immediately rather than attempting subsequent steps that would fail due to missing prerequisites.
 
 Alternatively, configurations can embed references to other configurations as installation steps:
 
@@ -333,7 +345,7 @@ Alternatively, configurations can embed references to other configurations as in
   "install_steps": [
     {
       "name": "Ensure dependencies",
-      "command": "sink execute examples/platform-dependencies.json",
+      "command": "sink execute examples/03-distributions.json",
       "description": "Recursive execution of dependency configuration"
     },
     {
@@ -344,6 +356,8 @@ Alternatively, configurations can embed references to other configurations as in
   ]
 }
 ```
+
+For more examples and patterns, see [examples/FAQ.md](../examples/FAQ.md).
 
 This embedded approach makes dependencies explicit in the configuration itself. Users only need to run the top-level configuration, and it automatically ensures prerequisites are met. This pattern works for arbitrary depth: configurations can reference configurations that reference other configurations, with the idempotent checks preventing redundant work at each level.
 

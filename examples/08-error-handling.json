@@ -1,0 +1,47 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "description": "Error handling patterns: check-only, error-only, and remediation",
+  "version": "1.0.0",
+  "platforms": [
+    {
+      "os": "darwin",
+      "match": "darwin*",
+      "name": "macOS",
+      "install_steps": [
+        {
+          "name": "Check-only step (must pass)",
+          "check": "command -v git",
+          "error": "Git is required but not installed. Please install Git first."
+        },
+        {
+          "name": "Error-only step (command must succeed)",
+          "command": "git --version",
+          "error": "Git command failed"
+        },
+        {
+          "name": "Check with remediation",
+          "check": "[ -f ~/.gitconfig ]",
+          "on_missing": [
+            {
+              "name": "Create git config",
+              "command": "git config --global init.defaultBranch main"
+            }
+          ]
+        },
+        {
+          "name": "Check with automatic remediation",
+          "check": "grep -q 'HOMEBREW' ~/.zprofile 2>/dev/null",
+          "on_missing": [
+            {
+              "name": "Add Homebrew to shell profile",
+              "command": "echo 'eval \"$(/opt/homebrew/bin/brew shellenv)\"' >> ~/.zprofile"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fallback": {
+    "error": "This configuration requires macOS"
+  }
+}

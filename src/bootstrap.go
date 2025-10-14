@@ -375,6 +375,6 @@ Related Commands:
 See Also:
   docs/GITHUB_URL_PINNING.md  - GitHub pinning security guide
   docs/REMOTE_BOOTSTRAP.md    - Remote deployment guide
-  examples/bootstrap-*.json   - Bootstrap examples
+  examples/FAQ.md             - Examples and patterns
 `)
 }

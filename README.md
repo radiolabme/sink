@@ -82,7 +82,9 @@ open test/coverage.html
 
 ## Configuration Basics
 
-Configurations are JSON documents with a version field and platform-specific installation definitions. The simplest configuration specifies steps for a single platform:
+Configurations are JSON documents with a version field and platform-specific installation definitions. For detailed examples and patterns, see **[examples/FAQ.md](examples/FAQ.md)**, which provides a comprehensive guide to Sink's features with focused, working examples.
+
+The simplest configuration specifies steps for a single platform:
 
 ```json
 {
@@ -288,6 +290,32 @@ Safety takes precedence through context display and explicit confirmation. The s
 Comprehensive testing provides confidence in reliability. The test suite covers core functionality, edge cases, and integration scenarios, with continuous focus on improving coverage.
 
 Interface-based design enables extension. The transport system uses interfaces allowing new execution backends to be added without modifying core logic.
+
+## Examples
+
+The `examples/` directory contains focused, production-ready examples demonstrating each Sink feature clearly:
+
+- **[01-basic.json](examples/01-basic.json)** - Your first Sink configuration with simple validation
+- **[02-multi-platform.json](examples/02-multi-platform.json)** - Cross-platform support (macOS, Linux, Windows)
+- **[03-distributions.json](examples/03-distributions.json)** - Linux distribution detection and package management
+- **[04-facts.json](examples/04-facts.json)** - System fact gathering and template substitution
+- **[05-nested-steps.json](examples/05-nested-steps.json)** - Conditional execution with check/on_missing patterns
+- **[06-retry.json](examples/06-retry.json)** - Retry logic for handling transient failures
+- **[07-defaults.json](examples/07-defaults.json)** - Reusable configurations with default values
+- **[08-error-handling.json](examples/08-error-handling.json)** - Different error handling patterns
+
+Each example is self-contained and can be run independently. For detailed explanations, use cases, and best practices, see **[examples/FAQ.md](examples/FAQ.md)**, which provides a comprehensive, editorial-style guide to all Sink features.
+
+Quick example validation:
+
+```bash
+# Validate all examples
+for f in examples/0*.json; do ./bin/sink validate "$f"; done
+
+# Try the basic example
+./bin/sink execute examples/01-basic.json --dry-run
+./bin/sink execute examples/01-basic.json
+```
 
 ## Future Development
 

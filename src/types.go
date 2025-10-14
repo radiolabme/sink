@@ -8,6 +8,7 @@ import (
 // Config represents the top-level configuration
 type Config struct {
 	Schema      string             `json:"$schema,omitempty"`
+	Name        string             `json:"name,omitempty"`
 	Version     string             `json:"version"`
 	Description string             `json:"description,omitempty"`
 	Facts       map[string]FactDef `json:"facts,omitempty"`
