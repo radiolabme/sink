@@ -153,6 +153,8 @@ Command-specific help can be accessed in two ways:
 ```bash
 sink help execute
 sink execute --help
+sink help bootstrap
+sink bootstrap --help
 ```
 
 The execute command runs a configuration file with optional platform override and dry-run mode:
@@ -161,6 +163,20 @@ The execute command runs a configuration file with optional platform override an
 sink execute config.json
 sink execute config.json --dry-run
 sink execute config.json --platform linux
+```
+
+The bootstrap command loads and executes configurations from remote URLs or local files, supporting HTTP, HTTPS, and GitHub URLs with optional checksum verification:
+
+```bash
+sink bootstrap https://example.com/config.json
+sink bootstrap https://example.com/config.json --sha256 <hash>
+sink bootstrap https://example.com/config.json --dry-run
+```
+
+The remote command deploys configurations to remote hosts via SSH (currently in development):
+
+```bash
+sink remote deploy config.json
 ```
 
 Validation checks configuration syntax against the JSON schema:
@@ -187,7 +203,7 @@ Version information is available through:
 sink version
 ```
 
-Comprehensive help documentation for the CLI system is available in `docs/CLI_HELP_SYSTEM.md`.
+Each command provides detailed help accessible through `sink help <command>` or `sink <command> --help`.
 
 ## Testing and Quality
 
@@ -277,21 +293,25 @@ Interface-based design enables extension. The transport system uses interfaces a
 
 Several enhancements are planned to extend Sink's capabilities beyond local execution.
 
-SSH transport will enable remote system configuration through secure channels. The same configurations that work locally will be deployable to remote hosts over SSH connections.
+Remote bootstrap functionality is already implemented, allowing configurations to be loaded from HTTP/HTTPS URLs with optional SHA256 checksum verification. GitHub URL pinning is supported to ensure configurations are loaded from specific, immutable versions.
 
-A REST API will provide HTTP access to Sink functionality with Server-Sent Events for real-time progress streaming. This enables web-based interfaces and integration with deployment orchestration systems.
+SSH transport is under active development to enable remote system configuration through secure channels. The same configurations that work locally will be deployable to remote hosts over SSH connections.
+
+A REST API is planned to provide HTTP access to Sink functionality with Server-Sent Events for real-time progress streaming. This will enable web-based interfaces and integration with deployment orchestration systems.
 
 Execution guards will add configuration-based safety rules. These rules can restrict execution based on hostname patterns, user requirements, or custom validation logic, preventing accidental deployment to production systems.
 
 Enhanced logging capabilities will provide full audit trails of all operations, including command execution, output capture, and timing information. This supports compliance requirements and troubleshooting.
 
-Detailed plans for these features are documented in `docs/REST_AND_SSH.md`.
+Comprehensive architectural documentation is available in `src/ARCHITECTURE.md`, covering system design, security model, and future roadmap.
 
 ## Makefile Reference
 
-The Makefile automates common development tasks. Building the project requires running `make build`, which compiles the source code into the `bin/sink` binary. During development, `make test` executes the full test suite to verify functionality, while `make coverage` and `make coverage-html` generate coverage statistics and visual reports respectively.
+The Makefile automates common development tasks. Building the project requires running `make build`, which compiles the source code into the `bin/sink` binary for the current platform. Cross-compilation targets include `make build-static` for static Linux binaries with no external dependencies, `make build-linux` for dynamic Linux binaries, and `make build-all` to compile for all supported platforms and architectures.
 
-Maintenance operations include `make clean` to remove build artifacts and test output, and `make install` to copy the binary to `/usr/local/bin` for system-wide access. The `make demo` target runs a demonstration configuration in dry-run mode for safe exploration, and `make help` displays all available targets with detailed descriptions.
+During development, `make test` executes the full test suite to verify functionality, while `make coverage` and `make coverage-html` generate coverage statistics and visual reports respectively.
+
+Maintenance operations include `make clean` to remove build artifacts and test output, and `make install` to copy the binary to `/usr/local/bin` for system-wide access. Demonstration targets include `make demo` and `make demo-install` which run example configurations in dry-run mode for safe exploration. The `make help` target displays all available targets with detailed descriptions.
 
 ## Contributing
 

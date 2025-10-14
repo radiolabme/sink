@@ -95,6 +95,27 @@ Version: %s
 `, Version)
 }
 
+// printCommandHelp displays detailed help information for a specific Sink command.
+// This function serves as the central help dispatcher, routing help requests to
+// command-specific help functions.
+//
+// Parameters:
+//   - command: The command name to display help for (e.g., "execute", "bootstrap")
+//
+// Supported commands:
+//   - execute/exec: Installation step execution
+//   - bootstrap: Remote configuration loading
+//   - remote: SSH deployment to remote hosts
+//   - facts: System fact gathering
+//   - validate: Configuration validation
+//   - schema: JSON schema output
+//   - version: Version information
+//
+// For unknown commands, displays an error message and shows general usage.
+// This function is called when users request help via:
+//   - sink help <command>
+//   - sink <command> --help
+//   - sink <command> -h
 func printCommandHelp(command string) {
 	switch command {
 	case "execute", "exec":
@@ -470,8 +491,30 @@ func executeCommand() {
 	executeConfigWithOptions(config, dryRun, platformOverride)
 }
 
-// executeConfigWithOptions executes a loaded config with given options
-// This is shared by both execute and bootstrap commands
+// executeConfigWithOptions executes a loaded configuration with the specified options.
+// This function is the core execution engine shared by both the execute and bootstrap commands.
+//
+// Parameters:
+//   - config: A validated Sink configuration loaded from JSON
+//   - dryRun: If true, preview steps without executing them
+//   - platformOverride: Optional platform override (e.g., "linux", "darwin")
+//
+// The function performs the following operations:
+//  1. Creates a local transport for command execution
+//  2. Gathers facts defined in the configuration
+//  3. Determines the target platform (detected or overridden)
+//  4. Selects the appropriate platform configuration
+//  5. Creates and configures an executor
+//  6. Displays execution context and prompts for confirmation (unless dry-run)
+//  7. Executes all installation steps for the platform
+//  8. Reports success/failure summary and exits with appropriate code
+//
+// Exit codes:
+//   - 0: All steps executed successfully
+//   - 1: Configuration errors, platform not found, or step failures
+//
+// The function handles user interaction for confirmation in non-dry-run mode
+// and provides real-time progress feedback during execution.
 func executeConfigWithOptions(config *Config, dryRun bool, platformOverride string) {
 	// Create transport
 	transport := NewLocalTransport()
@@ -555,10 +598,11 @@ func executeConfigWithOptions(config *Config, dryRun bool, platformOverride stri
 	// Set up event handler for progress
 	stepNum := 0
 	executor.OnEvent = func(event ExecutionEvent) {
-		if event.Status == "running" {
+		switch event.Status {
+		case "running":
 			stepNum++
 			fmt.Printf("[%d/%d] %s...\n", stepNum, len(selectedPlatform.InstallSteps), event.StepName)
-		} else if event.Status == "success" {
+		case "success":
 			fmt.Printf("      ✓ Success\n")
 			if event.Output != "" && !dryRun {
 				// Show first line of output
@@ -567,9 +611,9 @@ func executeConfigWithOptions(config *Config, dryRun bool, platformOverride stri
 					fmt.Printf("      Output: %s\n", lines[0])
 				}
 			}
-		} else if event.Status == "failed" {
+		case "failed":
 			fmt.Printf("      ✗ Failed: %s\n", event.Error)
-		} else if event.Status == "skipped" {
+		case "skipped":
 			fmt.Printf("      ⊘ Skipped\n")
 		}
 	}

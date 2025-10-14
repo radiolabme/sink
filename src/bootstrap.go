@@ -72,7 +72,38 @@ func bootstrapCommand() {
 	executeConfigWithOptions(config, dryRun, platform)
 }
 
-// loadConfigFromURL downloads and parses a config from a URL
+// loadConfigFromURL downloads and parses a Sink configuration from a URL.
+// This function handles secure remote configuration loading with checksum verification,
+// GitHub URL pinning validation, and automatic security measures.
+//
+// Parameters:
+//   - url: The URL to download configuration from (HTTP/HTTPS supported)
+//   - expectedSHA256: Optional SHA256 checksum for verification (64-char hex)
+//   - skipChecksum: If true, bypasses checksum verification (not recommended)
+//
+// Returns:
+//   - *Config: Parsed and validated Sink configuration
+//   - error: Network errors, checksum mismatches, or JSON parsing failures
+//
+// Security Model:
+//   - HTTP URLs: Require explicit checksum (mandatory for untrusted transport)
+//   - HTTPS URLs: Checksum optional but recommended
+//   - GitHub URLs: Automatic pin validation and security warnings
+//   - Auto-checksum: Attempts to fetch .sha256 file automatically
+//
+// Process Flow:
+//  1. Parse and validate GitHub URLs (if applicable)
+//  2. Attempt automatic checksum fetch if not provided
+//  3. Enforce security requirements (HTTP + checksum)
+//  4. Download configuration with 30-second timeout
+//  5. Verify checksum if provided
+//  6. Parse and validate JSON configuration
+//
+// Example Usage:
+//
+//	config, err := loadConfigFromURL(
+//	    "https://raw.githubusercontent.com/org/configs/v1.0.0/prod.json",
+//	    "a1b2c3d4...", false)
 func loadConfigFromURL(url string, expectedSHA256 string, skipChecksum bool) (*Config, error) {
 	// Check if it's a GitHub URL
 	githubInfo, isGitHub := ParseGitHubURL(url)
@@ -132,13 +163,42 @@ func loadConfigFromURL(url string, expectedSHA256 string, skipChecksum bool) (*C
 		return nil, fmt.Errorf("invalid JSON: %v", err)
 	}
 
-	// The config type itself performs basic structure validation
-	// Additional validation would happen during execution
+	// Parse install steps into type-safe variants
+	for i := range config.Platforms {
+		if err := parsePlatformSteps(&config.Platforms[i]); err != nil {
+			return nil, fmt.Errorf("platform %s: %w", config.Platforms[i].Name, err)
+		}
+	}
+
+	// Validate the configuration
+	if err := ValidateConfig(&config); err != nil {
+		return nil, fmt.Errorf("config validation failed: %w", err)
+	}
+
 	fmt.Printf("✅ Config loaded and validated\n")
 	return &config, nil
 }
 
-// validateGitHubPin validates GitHub URL pinning and warns about mutable refs
+// validateGitHubPin validates GitHub URL pinning and displays security warnings.
+// This function analyzes GitHub URLs to determine if they use pinned (immutable)
+// or mutable references, providing security guidance to users.
+//
+// Parameters:
+//   - info: Parsed GitHub URL information containing owner, repo, ref, and pin type
+//
+// Pin Types and Security Levels:
+//   - GitHubPinTag: Semantic version tags (v1.0.0) - Recommended ✅
+//   - GitHubPinCommit: Full commit SHAs - Highest security ✅✅
+//   - GitHubPinRelease: GitHub release downloads - Recommended ✅✅
+//   - GitHubPinBranch: Branch names (main, develop) - Mutable, warns user ⚠️
+//
+// Output Format:
+//   - Displays security status with visual indicators
+//   - Shows repository information for verification
+//   - Warns about mutable references that can change content
+//
+// This function is essential for supply chain security, helping users
+// understand the immutability guarantees of their configuration sources.
 func validateGitHubPin(info *GitHubURLInfo) {
 	switch info.PinType {
 	case GitHubPinTag:
@@ -159,7 +219,32 @@ func validateGitHubPin(info *GitHubURLInfo) {
 	fmt.Printf("   Repository: %s/%s\n", info.Owner, info.Repo)
 }
 
-// fetchChecksum attempts to download a .sha256 file
+// fetchChecksum attempts to download a SHA256 checksum file from a URL.
+// This function implements automatic checksum fetching by appending ".sha256"
+// to the original URL, supporting secure verification workflows.
+//
+// Parameters:
+//   - url: The base URL to fetch checksum for (e.g., "https://example.com/config.json")
+//
+// Returns:
+//   - string: The SHA256 hash in hexadecimal format (64 characters)
+//   - error: HTTP errors, timeout, or invalid checksum format
+//
+// Behavior:
+//   - Attempts to fetch URL + ".sha256" (e.g., "https://example.com/config.json.sha256")
+//   - Uses a 10-second timeout to prevent hanging
+//   - Expects checksum file to contain only the hex hash (no filename)
+//   - Trims whitespace from response
+//
+// Common Usage:
+//
+//	Many projects provide .sha256 files alongside downloads for verification.
+//	This enables automatic security verification without manual checksum lookup.
+//
+// Example:
+//
+//	checksum, err := fetchChecksum("https://releases.example.com/v1.0.0/app.tar.gz")
+//	// Fetches from: https://releases.example.com/v1.0.0/app.tar.gz.sha256
 func fetchChecksum(url string) (string, error) {
 	client := &http.Client{
 		Timeout: ChecksumHTTPTimeout,

@@ -58,7 +58,8 @@ func TestLoadConfigFromURL_WithSHA256(t *testing.T) {
 		"platforms": [{
 			"name": "Test",
 			"os": "darwin",
-			"install_steps": []
+			"match": "Darwin",
+			"install_steps": [{"name": "test", "command": "true", "check": "true"}]
 		}]
 	}`
 
@@ -112,7 +113,8 @@ func TestLoadConfigFromURL_SkipChecksum(t *testing.T) {
 		"platforms": [{
 			"name": "Test",
 			"os": "darwin",
-			"install_steps": []
+			"match": "Darwin",
+			"install_steps": [{"name": "test", "command": "true", "check": "true"}]
 		}]
 	}`
 
