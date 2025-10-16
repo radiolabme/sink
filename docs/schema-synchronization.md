@@ -75,18 +75,17 @@ If you edit `src/sink.schema.json`:
 # 1. Make your schema changes
 vim src/sink.schema.json
 
-# 2. Rebuild the binary to embed the new schema
+# 2. Rebuild the binary (automatically syncs data/sink.schema.json)
 make build
 
-# 3. Copy to data directory for external tools
-cp src/sink.schema.json data/sink.schema.json
-
-# 4. Run tests to verify synchronization
+# 3. Run tests to verify synchronization
 make verify-schema
 
-# 5. Run all tests to ensure nothing broke
+# 4. Run all tests to ensure nothing broke
 make test
 ```
+
+**Note**: `make build` now automatically copies `src/sink.schema.json` to `data/sink.schema.json`, so you don't need to do this manually.
 
 ### When Adding Code Features
 
@@ -95,9 +94,8 @@ If you add new properties to Go types (`FactDef`, `CommandStep`, `RemediationSte
 ```bash
 # 1. Add the property to types.go
 # 2. Add the property to sink.schema.json
-# 3. Update the embedded schema and data copy
+# 3. Rebuild (automatically syncs embedded schema and data copy)
 make build
-cp src/sink.schema.json data/sink.schema.json
 
 # 4. Verify the feature is in the schema
 go test ./src/... -run TestSchemaHasRequiredNewProperties -v
@@ -111,22 +109,22 @@ make verify-schema
 Before committing schema-related changes:
 
 - [ ] Schema file updated: `src/sink.schema.json`
-- [ ] Binary rebuilt: `make build`
-- [ ] Data copy updated: `cp src/sink.schema.json data/sink.schema.json`
+- [ ] Binary rebuilt: `make build` (automatically syncs `data/sink.schema.json`)
 - [ ] Tests pass: `make verify-schema`
 - [ ] All tests pass: `make test`
 - [ ] Manual diff clean: `diff <(jq -S . src/sink.schema.json) <(./bin/sink schema | jq -S .)`
 
 ## Build Process
 
-The build process automatically embeds the schema from `src/sink.schema.json` into `src/schema.go`:
+The build process automatically embeds the schema from `src/sink.schema.json` into `src/schema.go` and copies it to `data/sink.schema.json`:
 
 ```bash
-# Standard build (embeds current schema)
+# Standard build (embeds current schema + syncs data copy)
 make build
 
-# The build generates src/schema.go with:
-# var embeddedSchema = `<contents of sink.schema.json>`
+# The build:
+# 1. Generates src/schema.go with: var embeddedSchema = `<contents of sink.schema.json>`
+# 2. Copies src/sink.schema.json to data/sink.schema.json
 ```
 
 **Important**: The schema is embedded at build time. If you modify `sink.schema.json` without rebuilding, the binary will still have the old schema.

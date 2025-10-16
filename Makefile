@@ -9,8 +9,10 @@ all: build test
 build:
 	@echo "Building sink for current platform..."
 	@go build -o bin/sink ./src/...
+	@cp src/sink.schema.json data/sink.schema.json
 	@echo "✅ Binary built: bin/sink"
 	@echo "   Platform: $$(go env GOOS)/$$(go env GOARCH)"
+	@echo "   Schema synced: data/sink.schema.json"
 
 # Verify schema synchronization (run before commits/CI)
 verify-schema:

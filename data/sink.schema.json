@@ -10,6 +10,10 @@
       "type": "string",
       "description": "Reference to this schema for validation"
     },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name for this configuration"
+    },
     "description": {
       "type": "string",
       "description": "Human-readable description of this configuration"
@@ -55,95 +59,6 @@
     "fallback": {
       "$ref": "#/$defs/fallback",
       "description": "Global fallback error message for unsupported platforms"
-    },
-    "bootstrap": {
-      "type": "object",
-      "description": "Bootstrap configuration for remote deployment",
-      "properties": {
-        "security": {
-          "type": "object",
-          "description": "Security requirements for remote configuration sources",
-          "properties": {
-            "allowed_sources": {
-              "type": "array",
-              "description": "Allowlist of permitted URL patterns (glob patterns supported)",
-              "items": {
-                "type": "string",
-                "format": "uri",
-                "examples": [
-                  "https://configs.example.com/*",
-                  "https://raw.githubusercontent.com/myorg/configs/*",
-                  "https://github.com/myorg/configs/releases/download/*"
-                ]
-              }
-            },
-            "require_signatures": {
-              "type": "boolean",
-              "default": false,
-              "description": "Require GPG signatures for all remote configs"
-            },
-            "require_https": {
-              "type": "boolean",
-              "default": true,
-              "description": "Require HTTPS for all remote configs"
-            },
-            "require_pinning": {
-              "type": "boolean",
-              "default": false,
-              "description": "Require GitHub URLs to be pinned (no mutable branches)"
-            },
-            "trusted_keys": {
-              "type": "array",
-              "description": "List of trusted GPG key IDs for signature verification",
-              "items": {
-                "type": "string",
-                "pattern": "^(0x)?[0-9A-Fa-f]{8,40}$",
-                "examples": ["0x1234567890ABCDEF", "1234567890ABCDEF"]
-              }
-            }
-          }
-        },
-        "remote_configs": {
-          "type": "array",
-          "description": "Remote configuration sources to fetch and execute",
-          "items": {
-            "$ref": "#/$defs/remote_config"
-          }
-        },
-        "ssh": {
-          "type": "object",
-          "description": "SSH configuration for remote execution",
-          "properties": {
-            "targets": {
-              "type": "array",
-              "description": "List of SSH targets (user@host or user@host:port)",
-              "items": {
-                "type": "string",
-                "pattern": "^[^@]+@[^:@]+(:([0-9]+))?$",
-                "examples": ["user@host.example.com", "deploy@192.168.1.10:2222"]
-              },
-              "minItems": 1
-            },
-            "parallel": {
-              "type": "boolean",
-              "default": false,
-              "description": "Execute on targets in parallel"
-            },
-            "timeout": {
-              "type": "string",
-              "pattern": "^[0-9]+(s|m|h)$",
-              "default": "5m",
-              "description": "SSH connection timeout"
-            },
-            "retry": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "description": "Number of retry attempts for failed connections"
-            }
-          }
-        }
-      }
     }
   },
   "$defs": {
@@ -177,6 +92,47 @@
           "type": "boolean",
           "default": false,
           "description": "Fail if fact cannot be gathered on applicable platforms"
+        },
+        "verbose": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose output logging to stderr during fact gathering"
+        },
+        "sleep": {
+          "type": "string",
+          "pattern": "^[0-9]+(ns|us|µs|ms|s|m|h)$",
+          "description": "Duration to sleep after gathering this fact (e.g., '1s', '500ms')",
+          "examples": ["1s", "500ms", "2m"]
+        },
+        "timeout": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+(s|m|h)$",
+              "description": "Simple timeout duration string",
+              "examples": ["30s", "2m", "5m"]
+            },
+            {
+              "type": "object",
+              "description": "Advanced timeout configuration with custom error code",
+              "required": ["interval"],
+              "properties": {
+                "interval": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(s|m|h)$",
+                  "description": "Timeout duration",
+                  "examples": ["30s", "2m"]
+                },
+                "error_code": {
+                  "type": "integer",
+                  "description": "Custom exit code to return on timeout (e.g., 124 for timeout command compatibility)",
+                  "examples": [124, 137, 143]
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Timeout for retry operations. Can be a simple string or an object with interval and error_code"
         }
       },
       "oneOf": [
@@ -358,10 +314,45 @@
               "description": "Retry behavior. 'until' = keep retrying command until it succeeds (exit code 0) or timeout is reached"
             },
             "timeout": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]+(s|m|h)$",
+                  "description": "Simple timeout duration string",
+                  "examples": ["30s", "2m", "5m", "1h"]
+                },
+                {
+                  "type": "object",
+                  "description": "Advanced timeout configuration with custom error code",
+                  "required": ["interval"],
+                  "properties": {
+                    "interval": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(s|m|h)$",
+                      "description": "Timeout duration",
+                      "examples": ["30s", "2m"]
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "description": "Custom exit code to return on timeout (e.g., 124 for timeout command compatibility)",
+                      "examples": [124, 137, 143]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Timeout duration for retry (e.g., '30s', '2m', '5m'). Can be a simple string or an object with interval and error_code. Only used if retry is set. Defaults to 60s if retry is set but timeout is omitted."
+            },
+            "verbose": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable verbose output logging to stderr during command execution"
+            },
+            "sleep": {
               "type": "string",
-              "pattern": "^[0-9]+(s|m|h)$",
-              "description": "Timeout duration for retry (e.g., '30s', '2m', '5m'). Only used if retry is set. Defaults to 60s if retry is set but timeout is omitted.",
-              "examples": ["30s", "2m", "5m", "1h"]
+              "pattern": "^[0-9]+(ns|us|µs|ms|s|m|h)$",
+              "description": "Duration to sleep after executing this command (e.g., '1s', '500ms')",
+              "examples": ["1s", "500ms", "2m"]
             }
           },
           "additionalProperties": false
@@ -432,10 +423,45 @@
           "description": "Retry behavior. 'until' = keep retrying command until it succeeds (exit code 0) or timeout is reached"
         },
         "timeout": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+(s|m|h)$",
+              "description": "Simple timeout duration string",
+              "examples": ["30s", "2m", "5m", "1h"]
+            },
+            {
+              "type": "object",
+              "description": "Advanced timeout configuration with custom error code",
+              "required": ["interval"],
+              "properties": {
+                "interval": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(s|m|h)$",
+                  "description": "Timeout duration",
+                  "examples": ["30s", "2m"]
+                },
+                "error_code": {
+                  "type": "integer",
+                  "description": "Custom exit code to return on timeout (e.g., 124 for timeout command compatibility)",
+                  "examples": [124, 137, 143]
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Timeout duration for retry (e.g., '30s', '2m', '5m'). Can be a simple string or an object with interval and error_code. Only used if retry is set. Defaults to 60s if retry is set but timeout is omitted."
+        },
+        "verbose": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose output logging to stderr during remediation command execution"
+        },
+        "sleep": {
           "type": "string",
-          "pattern": "^[0-9]+(s|m|h)$",
-          "description": "Timeout duration for retry (e.g., '30s', '2m', '5m'). Only used if retry is set. Defaults to 60s if retry is set but timeout is omitted.",
-          "examples": ["30s", "2m", "5m", "1h"]
+          "pattern": "^[0-9]+(ns|us|µs|ms|s|m|h)$",
+          "description": "Duration to sleep after executing this remediation command (e.g., '1s', '500ms')",
+          "examples": ["1s", "500ms", "2m"]
         }
       },
       "additionalProperties": false
@@ -447,106 +473,6 @@
         "error": {
           "type": "string",
           "description": "Error message (supports {os} and {distro} placeholders)"
-        }
-      }
-    },
-    "remote_config": {
-      "type": "object",
-      "required": ["url"],
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Human-readable name for this config source"
-        },
-        "url": {
-          "type": "string",
-          "format": "uri",
-          "description": "URL to fetch config from (supports GitHub URL pinning)",
-          "examples": [
-            "https://configs.example.com/prod.json",
-            "https://raw.githubusercontent.com/myorg/configs/v1.0.0/prod.json",
-            "https://github.com/myorg/configs/releases/download/v1.0.0/prod.json"
-          ]
-        },
-        "checksum_url": {
-          "type": "string",
-          "format": "uri",
-          "description": "URL to SHA256 checksum file (auto-constructed as {url}.sha256 if omitted)"
-        },
-        "signature_url": {
-          "type": "string",
-          "format": "uri",
-          "description": "URL to GPG signature file (auto-constructed as {url}.asc if omitted)"
-        },
-        "pin": {
-          "type": "object",
-          "description": "GitHub URL pinning configuration",
-          "properties": {
-            "type": {
-              "type": "string",
-              "enum": ["tag", "commit", "branch"],
-              "description": "Type of GitHub reference"
-            },
-            "value": {
-              "type": "string",
-              "description": "Tag name, commit SHA, or branch name",
-              "examples": ["v1.0.0", "a1b2c3d4e5f6", "main"]
-            },
-            "repository": {
-              "type": "string",
-              "pattern": "^[^/]+/[^/]+$",
-              "description": "GitHub repository (owner/repo)",
-              "examples": ["myorg/configs"]
-            },
-            "require_immutable": {
-              "type": "boolean",
-              "default": true,
-              "description": "Fail if pin is mutable (branch instead of tag/commit)"
-            }
-          },
-          "required": ["type", "value", "repository"]
-        },
-        "verification": {
-          "type": "object",
-          "description": "Verification settings for this config",
-          "properties": {
-            "checksums": {
-              "type": "object",
-              "description": "Expected checksums for verification",
-              "properties": {
-                "sha256": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{64}$",
-                  "description": "SHA256 checksum (64 hex chars)"
-                },
-                "sha512": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{128}$",
-                  "description": "SHA512 checksum (128 hex chars)"
-                },
-                "blake2b": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{128}$",
-                  "description": "BLAKE2b-512 checksum (128 hex chars)"
-                }
-              }
-            },
-            "gpg_key": {
-              "type": "string",
-              "pattern": "^(0x)?[0-9A-Fa-f]{8,40}$",
-              "description": "GPG key ID for signature verification"
-            },
-            "auto_fetch_checksum": {
-              "type": "boolean",
-              "default": true,
-              "description": "Automatically fetch .sha256 file if no checksum provided"
-            },
-            "max_age_seconds": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Maximum age of config in seconds (for freshness check)"
-            }
-          }
         }
       }
     }
