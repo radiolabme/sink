@@ -142,8 +142,16 @@ jobs:
         ./bin/sink execute data/install-config.json --dry-run
         echo "Testing install config with facts..."
         ./bin/sink execute data/install-config-with-facts.json --dry-run
-        echo "Testing new examples..."
-        for f in examples/0*.json; do echo "Testing $f..."; ./bin/sink execute "$f" --dry-run; done
+        echo "Testing examples with Linux support..."
+        for f in examples/0*.json; do 
+          echo "Testing $f..."
+          # Check if config has Linux support before running
+          if jq -e '.platforms[] | select(.os == "linux")' "$f" > /dev/null 2>&1; then
+            ./bin/sink execute "$f" --dry-run
+          else
+            echo "  ⊘ Skipped (no Linux platform configuration)"
+          fi
+        done
         echo "Testing bootstrap examples..."
         ./bin/sink execute examples/bootstrap-github-pinned.json --dry-run
         ./bin/sink execute examples/bootstrap-https-url.json --dry-run
