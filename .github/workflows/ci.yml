@@ -145,7 +145,8 @@ jobs:
         echo "Testing new examples..."
         for f in examples/0*.json; do echo "Testing $f..."; ./bin/sink execute "$f" --dry-run; done
         echo "Testing bootstrap examples..."
-        ./bin/sink execute examples/bootstrap-github-commit.json --dry-run
+        ./bin/sink execute examples/bootstrap-github-pinned.json --dry-run
+        ./bin/sink execute examples/bootstrap-https-url.json --dry-run
 
   lint:
     name: Lint
