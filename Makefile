@@ -1,6 +1,6 @@
 # Makefile for sink project
 
-.PHONY: all build build-static build-linux build-all test coverage clean install help
+.PHONY: all build build-static build-linux build-all test coverage clean install help verify-schema
 
 # Default target
 all: build test
@@ -11,6 +11,12 @@ build:
 	@go build -o bin/sink ./src/...
 	@echo "✅ Binary built: bin/sink"
 	@echo "   Platform: $$(go env GOOS)/$$(go env GOARCH)"
+
+# Verify schema synchronization (run before commits/CI)
+verify-schema:
+	@echo "Verifying schema synchronization..."
+	@go test ./src/... -run TestSchemaSynchronization -v
+	@echo "✅ Schema verification complete"
 
 # Build static binary for Linux AMD64 (fully portable, no dependencies)
 build-static:
@@ -111,6 +117,7 @@ help:
 	@echo "  make test            - Run all tests"
 	@echo "  make coverage        - Run tests with coverage report"
 	@echo "  make coverage-html   - Generate HTML coverage report"
+	@echo "  make verify-schema   - Verify schema file and embedded schema are synchronized"
 	@echo ""
 	@echo "Other Targets:"
 	@echo "  make clean           - Remove build artifacts and coverage files"

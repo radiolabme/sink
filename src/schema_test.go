@@ -411,3 +411,187 @@ func TestSchemaCommand(t *testing.T) {
 
 	t.Logf("✓ Schema command emitted %d bytes of valid JSON", len(output))
 }
+
+// TestSchemaSynchronization verifies that the schema file and embedded schema are synchronized
+// This test ensures that sink.schema.json and the embedded schema in schema.go match exactly
+func TestSchemaSynchronization(t *testing.T) {
+	// Read the schema file from disk
+	schemaPath := filepath.Join("sink.schema.json")
+	schemaFileBytes, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatalf("failed to read schema file %s: %v", schemaPath, err)
+	}
+
+	// Parse both schemas as JSON to normalize formatting
+	var schemaFromFile map[string]interface{}
+	if err := json.Unmarshal(schemaFileBytes, &schemaFromFile); err != nil {
+		t.Fatalf("schema file is not valid JSON: %v", err)
+	}
+
+	var schemaEmbedded map[string]interface{}
+	if err := json.Unmarshal([]byte(embeddedSchema), &schemaEmbedded); err != nil {
+		t.Fatalf("embedded schema is not valid JSON: %v", err)
+	}
+
+	// Convert both to canonical JSON (sorted keys, no whitespace)
+	fileCanonical, err := json.Marshal(schemaFromFile)
+	if err != nil {
+		t.Fatalf("failed to marshal schema from file: %v", err)
+	}
+
+	embeddedCanonical, err := json.Marshal(schemaEmbedded)
+	if err != nil {
+		t.Fatalf("failed to marshal embedded schema: %v", err)
+	}
+
+	// Compare the canonical forms
+	if string(fileCanonical) != string(embeddedCanonical) {
+		t.Error("❌ Schema file and embedded schema are OUT OF SYNC!")
+		t.Error("")
+		t.Error("The schema in sink.schema.json does not match the embedded schema in schema.go")
+		t.Error("")
+		t.Error("To fix this issue:")
+		t.Error("  1. Ensure sink.schema.json contains the correct, up-to-date schema")
+		t.Error("  2. Run: make build")
+		t.Error("  3. This will regenerate schema.go with the embedded schema from sink.schema.json")
+		t.Error("")
+		t.Error("If the schema file was modified more recently than the binary was built,")
+		t.Error("you need to rebuild the binary to embed the latest schema.")
+		t.Error("")
+		
+		// Show which properties differ
+		t.Error("Checking for specific differences...")
+		compareSchemaProperties(t, schemaFromFile, schemaEmbedded, "")
+		
+		t.FailNow()
+	}
+
+	t.Log("✓ Schema file and embedded schema are synchronized")
+	t.Logf("  Schema file: %s (%d bytes)", schemaPath, len(schemaFileBytes))
+	t.Logf("  Embedded schema: %d bytes", len(embeddedSchema))
+}
+
+// compareSchemaProperties recursively compares two schema objects and reports differences
+func compareSchemaProperties(t *testing.T, file, embedded interface{}, path string) {
+	fileMap, fileIsMap := file.(map[string]interface{})
+	embeddedMap, embeddedIsMap := embedded.(map[string]interface{})
+
+	if fileIsMap && embeddedIsMap {
+		// Check for missing keys in embedded
+		for key := range fileMap {
+			if _, ok := embeddedMap[key]; !ok {
+				t.Errorf("  - Property %s.%s exists in file but missing in embedded schema", path, key)
+			}
+		}
+		
+		// Check for extra keys in embedded
+		for key := range embeddedMap {
+			if _, ok := fileMap[key]; !ok {
+				t.Errorf("  - Property %s.%s exists in embedded but missing in file schema", path, key)
+			}
+		}
+		
+		// Recursively compare common keys (limit depth to avoid noise)
+		if len(path) < 50 { // Prevent infinite recursion
+			for key := range fileMap {
+				if embeddedVal, ok := embeddedMap[key]; ok {
+					newPath := key
+					if path != "" {
+						newPath = path + "." + key
+					}
+					compareSchemaProperties(t, fileMap[key], embeddedVal, newPath)
+				}
+			}
+		}
+	} else if fileIsMap != embeddedIsMap {
+		t.Errorf("  - Property %s type mismatch: file is map=%v, embedded is map=%v", path, fileIsMap, embeddedIsMap)
+	}
+}
+
+// TestSchemaHasRequiredNewProperties verifies that new properties (verbose, sleep, timeout) exist
+// This test ensures features added to the code are also present in the schema
+func TestSchemaHasRequiredNewProperties(t *testing.T) {
+	var schema map[string]interface{}
+	if err := json.Unmarshal([]byte(embeddedSchema), &schema); err != nil {
+		t.Fatalf("embedded schema is not valid JSON: %v", err)
+	}
+
+	// Get $defs section
+	defs, ok := schema["$defs"].(map[string]interface{})
+	if !ok {
+		t.Fatal("schema missing $defs section")
+	}
+
+	// Test cases for each type that should have the new properties
+	tests := []struct {
+		defName    string
+		properties []string
+	}{
+		{
+			defName:    "fact",
+			properties: []string{"verbose", "sleep", "timeout"},
+		},
+		{
+			defName:    "remediation_step",
+			properties: []string{"verbose", "sleep", "timeout"},
+		},
+		{
+			defName:    "install_step",
+			properties: []string{"verbose", "sleep", "timeout"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.defName, func(t *testing.T) {
+			def, ok := defs[tt.defName].(map[string]interface{})
+			if !ok {
+				t.Fatalf("$defs.%s not found or not an object", tt.defName)
+			}
+
+			// For install_step, it's wrapped in oneOf
+			var props map[string]interface{}
+			if tt.defName == "install_step" {
+				oneOf, ok := def["oneOf"].([]interface{})
+				if !ok || len(oneOf) == 0 {
+					t.Fatal("install_step missing oneOf")
+				}
+				firstOption, ok := oneOf[0].(map[string]interface{})
+				if !ok {
+					t.Fatal("install_step oneOf[0] is not an object")
+				}
+				props, ok = firstOption["properties"].(map[string]interface{})
+				if !ok {
+					t.Fatal("install_step oneOf[0] missing properties")
+				}
+			} else {
+				props, ok = def["properties"].(map[string]interface{})
+				if !ok {
+					t.Fatalf("$defs.%s missing properties section", tt.defName)
+				}
+			}
+
+			// Check each required property
+			for _, propName := range tt.properties {
+				if _, exists := props[propName]; !exists {
+					t.Errorf("❌ $defs.%s missing property: %s", tt.defName, propName)
+					t.Errorf("   This indicates the schema is out of sync with the code")
+				} else {
+					t.Logf("✓ $defs.%s has property: %s", tt.defName, propName)
+				}
+			}
+
+			// Verify timeout has oneOf structure for string|object
+			if timeoutProp, ok := props["timeout"].(map[string]interface{}); ok {
+				if oneOf, ok := timeoutProp["oneOf"].([]interface{}); ok {
+					if len(oneOf) != 2 {
+						t.Errorf("timeout oneOf should have 2 options (string and object), got %d", len(oneOf))
+					} else {
+						t.Logf("✓ $defs.%s.timeout has oneOf with %d options", tt.defName, len(oneOf))
+					}
+				} else {
+					t.Errorf("timeout property missing oneOf structure")
+				}
+			}
+		})
+	}
+}

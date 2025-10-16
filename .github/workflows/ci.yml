@@ -198,6 +198,9 @@ jobs:
     - name: Build binary
       run: make build
 
+    - name: Run schema synchronization test
+      run: make verify-schema
+
     - name: Verify schema embedding
       run: |
         echo "Checking schema embedding..."

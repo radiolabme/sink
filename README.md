@@ -236,6 +236,22 @@ open test/coverage.html
 
 Current test coverage stands at approximately 53% of statements, with critical validation functions at 100% coverage. The test suite includes thorough validation of configuration parsing, platform detection, fact gathering, step execution, and error handling.
 
+### Schema Synchronization
+
+Sink includes automated safeguards to ensure the JSON schema stays synchronized with the code and embedded binary:
+
+```bash
+# Verify schema synchronization
+make verify-schema
+```
+
+This test ensures that:
+- The schema file (`src/sink.schema.json`) matches the embedded schema in the binary
+- New code features have corresponding schema definitions
+- All three schema copies (source, embedded, reference) are in sync
+
+The CI pipeline automatically runs these checks on every commit. For detailed information about schema synchronization, troubleshooting, and best practices, see **[docs/schema-synchronization.md](docs/schema-synchronization.md)**.
+
 ## Development Workflow
 
 During development, automated test execution on file changes streamlines the feedback loop. Using watchexec:
