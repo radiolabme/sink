@@ -165,7 +165,7 @@ type RemediationStep struct {
 
 // TimeoutConfig represents advanced timeout configuration
 type TimeoutConfig struct {
-	Interval  string `json:"interval"`            // Duration string like "30s", "5m"
+	Interval  string `json:"interval"`             // Duration string like "30s", "5m"
 	ErrorCode *int   `json:"error_code,omitempty"` // Custom exit code on timeout
 }
 

@@ -288,7 +288,7 @@ func (e *Executor) executeCommandWithRetry(stepName string, cmd CommandStep, fac
 		// Success!
 		if err == nil && exitCode == 0 {
 			elapsed := time.Since(startTime).Round(time.Second)
-			
+
 			// Apply sleep after successful retry
 			if sleepErr := applySleep(cmd.Sleep, cmd.Verbose); sleepErr != nil {
 				return StepResult{
@@ -562,7 +562,7 @@ func (e *Executor) executeRemediationWithRetry(remStep RemediationStep, facts Fa
 		// Success!
 		if err == nil && exitCode == 0 {
 			elapsed := time.Since(startTime).Round(time.Second)
-			
+
 			// Apply sleep after successful retry
 			if sleepErr := applySleep(remStep.Sleep, remStep.Verbose); sleepErr != nil {
 				return StepResult{

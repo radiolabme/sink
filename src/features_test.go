@@ -45,9 +45,9 @@ func TestTimeoutConfigParsing(t *testing.T) {
 			expectError:    false,
 		},
 		{
-			name:          "invalid timeout format",
-			timeoutJSON:   `123`,
-			expectError:   true,
+			name:        "invalid timeout format",
+			timeoutJSON: `123`,
+			expectError: true,
 		},
 	}
 

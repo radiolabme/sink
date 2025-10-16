@@ -124,7 +124,7 @@ func TestExecutorCheckRemediateStep(t *testing.T) {
 		statefulTransport := &StatefulMockTransport{
 			runFunc: func(cmd string) (string, string, int, error) {
 				cmd = strings.TrimSpace(cmd)
-				
+
 				// First call to "command -v snap" fails, subsequent calls succeed
 				if cmd == "command -v snap" {
 					callCount++
@@ -133,18 +133,18 @@ func TestExecutorCheckRemediateStep(t *testing.T) {
 					}
 					return "/usr/bin/snap", "", 0, nil // Installed after remediation
 				}
-				
+
 				// Remediation command succeeds
 				if cmd == "sudo apt-get install snapd" {
 					return "Installing...\n", "", 0, nil
 				}
-				
+
 				// Discovery commands for context
-				if strings.Contains(cmd, "hostname") || strings.Contains(cmd, "whoami") || 
-					 strings.Contains(cmd, "pwd") || strings.Contains(cmd, "uname") {
+				if strings.Contains(cmd, "hostname") || strings.Contains(cmd, "whoami") ||
+					strings.Contains(cmd, "pwd") || strings.Contains(cmd, "uname") {
 					return "test", "", 0, nil
 				}
-				
+
 				return "", "command not mocked", 127, nil
 			},
 		}
