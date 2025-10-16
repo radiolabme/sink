@@ -458,11 +458,11 @@ func TestSchemaSynchronization(t *testing.T) {
 		t.Error("If the schema file was modified more recently than the binary was built,")
 		t.Error("you need to rebuild the binary to embed the latest schema.")
 		t.Error("")
-		
+
 		// Show which properties differ
 		t.Error("Checking for specific differences...")
 		compareSchemaProperties(t, schemaFromFile, schemaEmbedded, "")
-		
+
 		t.FailNow()
 	}
 
@@ -483,14 +483,14 @@ func compareSchemaProperties(t *testing.T, file, embedded interface{}, path stri
 				t.Errorf("  - Property %s.%s exists in file but missing in embedded schema", path, key)
 			}
 		}
-		
+
 		// Check for extra keys in embedded
 		for key := range embeddedMap {
 			if _, ok := fileMap[key]; !ok {
 				t.Errorf("  - Property %s.%s exists in embedded but missing in file schema", path, key)
 			}
 		}
-		
+
 		// Recursively compare common keys (limit depth to avoid noise)
 		if len(path) < 50 { // Prevent infinite recursion
 			for key := range fileMap {
