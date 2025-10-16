@@ -176,8 +176,31 @@ func (e *Executor) executeCommand(stepName string, cmd CommandStep, facts Facts)
 		}
 	}
 
+	if cmd.Verbose {
+		verboseLog("Executing command: %s", command)
+	}
+
 	// Run the command
 	stdout, stderr, exitCode, err := e.transport.Run(command)
+
+	if cmd.Verbose {
+		verboseLog("Command exit code: %d", exitCode)
+		if stdout != "" {
+			verboseLog("stdout: %s", stdout)
+		}
+		if stderr != "" {
+			verboseLog("stderr: %s", stderr)
+		}
+	}
+
+	// Apply sleep if specified
+	if err := applySleep(cmd.Sleep, cmd.Verbose); err != nil {
+		return StepResult{
+			StepName: stepName,
+			Status:   "failed",
+			Error:    fmt.Sprintf("sleep error: %v", err),
+		}
+	}
 
 	if err != nil || exitCode != 0 {
 		errorMsg := fmt.Sprintf("command failed (exit %d)", exitCode)
@@ -217,19 +240,33 @@ func (e *Executor) executeCommandWithRetry(stepName string, cmd CommandStep, fac
 		}
 	}
 
-	// Parse timeout (default 60s if not specified or invalid)
+	if cmd.Verbose {
+		verboseLog("Executing command with retry: %s", command)
+	}
+
+	// Parse timeout configuration (default 60s if not specified)
 	timeout := 60 * time.Second
-	if cmd.Timeout != nil && *cmd.Timeout != "" {
-		parsedTimeout, err := time.ParseDuration(*cmd.Timeout)
+	var customErrorCode *int
+
+	if len(cmd.Timeout) > 0 {
+		parsedTimeout, errCode, err := parseTimeoutConfig(cmd.Timeout)
 		if err != nil {
 			return StepResult{
 				StepName: stepName,
 				Status:   "failed",
-				Error:    fmt.Sprintf("invalid timeout '%s': %v (use format like '30s', '2m', '1h')", *cmd.Timeout, err),
+				Error:    err.Error(),
 			}
 		}
 		if parsedTimeout > 0 {
 			timeout = parsedTimeout
+		}
+		customErrorCode = errCode
+	}
+
+	if cmd.Verbose {
+		verboseLog("Retry timeout: %s", timeout)
+		if customErrorCode != nil {
+			verboseLog("Custom timeout error code: %d", *customErrorCode)
 		}
 	}
 
@@ -244,9 +281,23 @@ func (e *Executor) executeCommandWithRetry(stepName string, cmd CommandStep, fac
 	for time.Now().Before(deadline) {
 		stdout, stderr, exitCode, err := e.transport.Run(command)
 
+		if cmd.Verbose {
+			verboseLog("Retry attempt - exit code: %d", exitCode)
+		}
+
 		// Success!
 		if err == nil && exitCode == 0 {
 			elapsed := time.Since(startTime).Round(time.Second)
+			
+			// Apply sleep after successful retry
+			if sleepErr := applySleep(cmd.Sleep, cmd.Verbose); sleepErr != nil {
+				return StepResult{
+					StepName: stepName,
+					Status:   "failed",
+					Error:    fmt.Sprintf("sleep error: %v", sleepErr),
+				}
+			}
+
 			return StepResult{
 				StepName: stepName,
 				Status:   "success",
@@ -275,12 +326,18 @@ func (e *Executor) executeCommandWithRetry(stepName string, cmd CommandStep, fac
 	elapsed := time.Since(startTime).Round(time.Second)
 	errorMsg := fmt.Sprintf("Timeout after %s\nLast error: %s", elapsed, lastErrorMsg)
 
+	// Use custom error code if specified, otherwise use last exit code
+	finalExitCode := lastExitCode
+	if customErrorCode != nil {
+		finalExitCode = *customErrorCode
+	}
+
 	return StepResult{
 		StepName: stepName,
 		Status:   "failed",
 		Output:   lastStdout,
 		Error:    errorMsg,
-		ExitCode: lastExitCode,
+		ExitCode: finalExitCode,
 	}
 }
 
@@ -356,10 +413,22 @@ func (e *Executor) executeCheckRemediate(stepName string, checkRem CheckRemediat
 		}
 	}
 
+	// Re-run the check to verify remediation actually fixed the issue
+	_, _, recheckExitCode, _ := e.transport.Run(checkCmd)
+
+	if recheckExitCode != 0 {
+		return StepResult{
+			StepName:         stepName,
+			Status:           "failed",
+			Error:            "remediation completed but check still fails",
+			RemediationSteps: remediationResults,
+		}
+	}
+
 	return StepResult{
 		StepName:         stepName,
 		Status:           "success",
-		Output:           "check failed, remediation completed successfully",
+		Output:           "check failed, remediation completed and verified",
 		RemediationSteps: remediationResults,
 	}
 }
@@ -381,8 +450,31 @@ func (e *Executor) executeRemediation(remStep RemediationStep, facts Facts) Step
 		}
 	}
 
+	if remStep.Verbose {
+		verboseLog("Executing remediation command: %s", command)
+	}
+
 	// Run the command
 	stdout, stderr, exitCode, err := e.transport.Run(command)
+
+	if remStep.Verbose {
+		verboseLog("Remediation exit code: %d", exitCode)
+		if stdout != "" {
+			verboseLog("stdout: %s", stdout)
+		}
+		if stderr != "" {
+			verboseLog("stderr: %s", stderr)
+		}
+	}
+
+	// Apply sleep if specified
+	if sleepErr := applySleep(remStep.Sleep, remStep.Verbose); sleepErr != nil {
+		return StepResult{
+			StepName: remStep.Name,
+			Status:   "failed",
+			Error:    fmt.Sprintf("sleep error: %v", sleepErr),
+		}
+	}
 
 	if err != nil || exitCode != 0 {
 		errorMsg := fmt.Sprintf("remediation command failed (exit %d)", exitCode)
@@ -422,19 +514,33 @@ func (e *Executor) executeRemediationWithRetry(remStep RemediationStep, facts Fa
 		}
 	}
 
-	// Parse timeout (default 60s if not specified or invalid)
+	if remStep.Verbose {
+		verboseLog("Executing remediation with retry: %s", command)
+	}
+
+	// Parse timeout configuration (default 60s if not specified)
 	timeout := 60 * time.Second
-	if remStep.Timeout != nil && *remStep.Timeout != "" {
-		parsedTimeout, err := time.ParseDuration(*remStep.Timeout)
+	var customErrorCode *int
+
+	if len(remStep.Timeout) > 0 {
+		parsedTimeout, errCode, err := parseTimeoutConfig(remStep.Timeout)
 		if err != nil {
 			return StepResult{
 				StepName: remStep.Name,
 				Status:   "failed",
-				Error:    fmt.Sprintf("invalid timeout '%s': %v (use format like '30s', '2m', '1h')", *remStep.Timeout, err),
+				Error:    err.Error(),
 			}
 		}
 		if parsedTimeout > 0 {
 			timeout = parsedTimeout
+		}
+		customErrorCode = errCode
+	}
+
+	if remStep.Verbose {
+		verboseLog("Retry timeout: %s", timeout)
+		if customErrorCode != nil {
+			verboseLog("Custom timeout error code: %d", *customErrorCode)
 		}
 	}
 
@@ -449,9 +555,23 @@ func (e *Executor) executeRemediationWithRetry(remStep RemediationStep, facts Fa
 	for time.Now().Before(deadline) {
 		stdout, stderr, exitCode, err := e.transport.Run(command)
 
+		if remStep.Verbose {
+			verboseLog("Remediation retry attempt - exit code: %d", exitCode)
+		}
+
 		// Success!
 		if err == nil && exitCode == 0 {
 			elapsed := time.Since(startTime).Round(time.Second)
+			
+			// Apply sleep after successful retry
+			if sleepErr := applySleep(remStep.Sleep, remStep.Verbose); sleepErr != nil {
+				return StepResult{
+					StepName: remStep.Name,
+					Status:   "failed",
+					Error:    fmt.Sprintf("sleep error: %v", sleepErr),
+				}
+			}
+
 			return StepResult{
 				StepName: remStep.Name,
 				Status:   "success",
@@ -480,12 +600,18 @@ func (e *Executor) executeRemediationWithRetry(remStep RemediationStep, facts Fa
 	elapsed := time.Since(startTime).Round(time.Second)
 	errorMsg := fmt.Sprintf("Timeout after %s\nLast error: %s", elapsed, lastErrorMsg)
 
+	// Use custom error code if specified, otherwise use last exit code
+	finalExitCode := lastExitCode
+	if customErrorCode != nil {
+		finalExitCode = *customErrorCode
+	}
+
 	return StepResult{
 		StepName: remStep.Name,
 		Status:   "failed",
 		Output:   lastStdout,
 		Error:    errorMsg,
-		ExitCode: lastExitCode,
+		ExitCode: finalExitCode,
 	}
 }
 

@@ -27,6 +27,9 @@ type FactDef struct {
 	Transform   map[string]string `json:"transform,omitempty"`
 	Strict      bool              `json:"strict,omitempty"`
 	Required    bool              `json:"required,omitempty"`
+	Timeout     json.RawMessage   `json:"timeout,omitempty"` // Can be string or TimeoutConfig object
+	Sleep       *string           `json:"sleep,omitempty"`   // Duration string like "1s", "500ms"
+	Verbose     bool              `json:"verbose,omitempty"`
 }
 
 // Platform represents a platform configuration
@@ -118,8 +121,10 @@ type CommandStep struct {
 	Command string
 	Message *string
 	Error   *string
-	Retry   *string // "until" = retry until success or timeout
-	Timeout *string // Duration string like "30s", "2m", "1h"
+	Retry   *string         // "until" = retry until success or timeout
+	Timeout json.RawMessage // Can be string or TimeoutConfig object
+	Sleep   *string         // Duration string like "1s", "500ms"
+	Verbose bool            // Enable verbose output
 }
 
 func (CommandStep) isStep() {}
@@ -152,8 +157,37 @@ type RemediationStep struct {
 	Name    string
 	Command string
 	Error   *string
-	Retry   *string // "until" = retry until success or timeout
-	Timeout *string // Duration string like "30s", "2m", "1h"
+	Retry   *string         // "until" = retry until success or timeout
+	Timeout json.RawMessage // Can be string or TimeoutConfig object
+	Sleep   *string         // Duration string like "1s", "500ms"
+	Verbose bool            // Enable verbose output
+}
+
+// TimeoutConfig represents advanced timeout configuration
+type TimeoutConfig struct {
+	Interval  string `json:"interval"`            // Duration string like "30s", "5m"
+	ErrorCode *int   `json:"error_code,omitempty"` // Custom exit code on timeout
+}
+
+// ParseTimeout parses a timeout field that can be either a string or TimeoutConfig object
+func ParseTimeout(raw json.RawMessage) (interval string, errorCode *int, err error) {
+	if len(raw) == 0 {
+		return "", nil, nil
+	}
+
+	// Try to unmarshal as string first
+	var timeoutStr string
+	if err := json.Unmarshal(raw, &timeoutStr); err == nil {
+		return timeoutStr, nil, nil
+	}
+
+	// Try to unmarshal as TimeoutConfig object
+	var timeoutCfg TimeoutConfig
+	if err := json.Unmarshal(raw, &timeoutCfg); err != nil {
+		return "", nil, fmt.Errorf("timeout must be a string or object with interval: %w", err)
+	}
+
+	return timeoutCfg.Interval, timeoutCfg.ErrorCode, nil
 }
 
 // Fallback represents a fallback error message

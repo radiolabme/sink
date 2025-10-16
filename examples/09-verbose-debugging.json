@@ -1,0 +1,50 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "version": "0.2.0",
+  "name": "Verbose Debugging Example",
+  "description": "Demonstrates verbose output for debugging command execution",
+  "facts": {
+    "os": {
+      "command": "uname -s",
+      "description": "Operating system name",
+      "verbose": true
+    },
+    "arch": {
+      "command": "uname -m",
+      "description": "System architecture",
+      "verbose": true
+    }
+  },
+  "platforms": [
+    {
+      "name": "Development Tools Setup",
+      "os": "darwin",
+      "match": ".*",
+      "install_steps": [
+        {
+          "name": "Check Homebrew installation",
+          "command": "which brew",
+          "message": "Verifying Homebrew is installed...",
+          "verbose": true
+        },
+        {
+          "name": "Update Homebrew",
+          "command": "brew update",
+          "message": "Updating Homebrew package lists...",
+          "verbose": true
+        },
+        {
+          "name": "Verify Git installation",
+          "check": "which git",
+          "on_missing": [
+            {
+              "name": "Install Git",
+              "command": "brew install git",
+              "verbose": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

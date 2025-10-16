@@ -302,6 +302,9 @@ Facts query system state before installation steps execute.
 | `strict` | boolean | ❌ | Fail if output not in transform map (default: `false`) |
 | `platforms` | array | ❌ | Only gather on specified platforms: `["darwin", "linux", "windows"]` |
 | `required` | boolean | ❌ | Fail if fact cannot be gathered (default: `false`) |
+| `timeout` | object | ❌ | Timeout configuration with `interval` (duration string) and `error_code` (int) |
+| `sleep` | string | ❌ | Duration to sleep after gathering fact (e.g., `"1s"`, `"500ms"`) |
+| `verbose` | boolean | ❌ | Enable verbose output for this fact's execution (default: `false`) |
 
 ### String Facts
 
@@ -379,6 +382,47 @@ Map command output to standardized values:
   }
 }
 ```
+
+### Facts with Timeout and Sleep
+
+```json
+{
+  "facts": {
+    "slow_query": {
+      "command": "curl -s https://api.example.com/status",
+      "description": "API status check",
+      "timeout": {
+        "interval": "10s",
+        "error_code": 124
+      },
+      "sleep": "2s",
+      "verbose": true
+    },
+    "database_ready": {
+      "command": "pg_isready -q",
+      "type": "boolean",
+      "timeout": {
+        "interval": "5s",
+        "error_code": 1
+      }
+    }
+  }
+}
+```
+
+**Timeout Configuration:**
+- `interval`: Duration string (e.g., `"30s"`, `"2m"`, `"1h"`)
+- `error_code`: Exit code to return on timeout (default: platform-specific)
+
+**Sleep Configuration:**
+- Pauses execution after the fact is gathered
+- Useful for rate limiting or waiting for system stabilization
+- Duration string format: `"500ms"`, `"1s"`, `"30s"`, `"2m"`
+
+**Verbose Output:**
+- When `verbose: true`, displays detailed execution information
+- Shows command being executed, stdout/stderr, exit codes
+- Useful for debugging complex fact gathering
 
 ### Using Facts in Commands
 
@@ -518,7 +562,9 @@ Run a shell command.
 | `message` | string | ❌ | Message to display before executing |
 | `error` | string | ❌ | Custom error message if command fails |
 | `retry` | enum | ❌ | Retry behavior: `"until"` (retry until success or timeout) |
-| `timeout` | string | ❌ | Timeout duration (e.g., `"30s"`, `"2m"`, `"1h"`) |
+| `timeout` | string or object | ❌ | Simple: duration string (e.g., `"30s"`). Advanced: object with `interval` and `error_code` |
+| `sleep` | string | ❌ | Duration to sleep after command execution (e.g., `"1s"`, `"500ms"`) |
+| `verbose` | boolean | ❌ | Enable verbose output for this command (default: `false`) |
 
 **Example:**
 ```json
@@ -536,6 +582,41 @@ Run a shell command.
   "command": "docker info",
   "retry": "until",
   "timeout": "60s"
+}
+```
+
+**With Advanced Timeout:**
+```json
+{
+  "name": "Long running process",
+  "command": "./build-script.sh",
+  "timeout": {
+    "interval": "30m",
+    "error_code": 124
+  },
+  "verbose": true
+}
+```
+
+**With Sleep (Rate Limiting):**
+```json
+{
+  "name": "API call with rate limiting",
+  "command": "curl -X POST https://api.example.com/deploy",
+  "sleep": "2s"
+}
+```
+
+**Verbose Debugging:**
+```json
+{
+  "name": "Debug complex command",
+  "command": "./setup.sh --config production",
+  "verbose": true,
+  "timeout": {
+    "interval": "5m",
+    "error_code": 143
+  }
 }
 ```
 
@@ -613,7 +694,9 @@ Steps that run when a check fails. Simpler than install steps.
 | `command` | string | ✅ | Shell command to execute |
 | `error` | string | ❌ | Custom error message if command fails |
 | `retry` | enum | ❌ | Retry behavior: `"until"` |
-| `timeout` | string | ❌ | Timeout duration (e.g., `"30s"`) |
+| `timeout` | string or object | ❌ | Simple: duration string (e.g., `"30s"`). Advanced: object with `interval` and `error_code` |
+| `sleep` | string | ❌ | Duration to sleep after command execution (e.g., `"1s"`) |
+| `verbose` | boolean | ❌ | Enable verbose output for this step (default: `false`) |
 
 ### Example
 
@@ -624,17 +707,24 @@ Steps that run when a check fails. Simpler than install steps.
   "on_missing": [
     {
       "name": "Install Docker Desktop",
-      "command": "brew install --cask docker"
+      "command": "brew install --cask docker",
+      "timeout": {
+        "interval": "10m",
+        "error_code": 124
+      },
+      "verbose": true
     },
     {
       "name": "Start Docker",
-      "command": "open -a Docker"
+      "command": "open -a Docker",
+      "sleep": "5s"
     },
     {
       "name": "Wait for Docker daemon",
       "command": "docker info",
       "retry": "until",
-      "timeout": "60s"
+      "timeout": "60s",
+      "verbose": true
     }
   ]
 }
@@ -647,6 +737,129 @@ Steps that run when a check fails. Simpler than install steps.
 - `on_missing` field (no nested remediation)
 
 For complex logic, use separate install steps.
+
+---
+
+## Advanced Features
+
+### Verbose Output
+
+Enable detailed execution information for debugging:
+
+```json
+{
+  "name": "Debug step",
+  "command": "./complex-script.sh",
+  "verbose": true
+}
+```
+
+**Verbose output includes:**
+- Full command being executed
+- Real-time stdout and stderr
+- Exit codes and timing information
+- Environment variable interpolation details
+
+**Global verbose mode:**
+```bash
+# Command line flag (future feature)
+sink execute config.json --verbose
+```
+
+### Timeout Configuration
+
+**Simple timeout (duration string):**
+```json
+{
+  "command": "long-running-process",
+  "timeout": "5m"
+}
+```
+
+**Advanced timeout (with custom error code):**
+```json
+{
+  "command": "critical-process",
+  "timeout": {
+    "interval": "30m",
+    "error_code": 124
+  }
+}
+```
+
+**Timeout object fields:**
+- `interval` (string, required): Duration before timeout (e.g., `"30s"`, `"5m"`, `"2h"`)
+- `error_code` (integer, optional): Exit code to return on timeout
+
+**Common timeout error codes:**
+- `124`: Standard `timeout` command exit code
+- `143`: SIGTERM (graceful termination)
+- `137`: SIGKILL (force kill)
+- `1`: Generic error
+
+### Sleep Intervals
+
+Pause execution after a command or fact gathering:
+
+```json
+{
+  "facts": {
+    "api_status": {
+      "command": "curl -s https://api.example.com/health",
+      "sleep": "1s"
+    }
+  },
+  "platforms": [{
+    "os": "darwin",
+    "match": "darwin*",
+    "name": "macOS",
+    "install_steps": [
+      {
+        "name": "Rate-limited API call",
+        "command": "curl -X POST https://api.example.com/deploy",
+        "sleep": "2s"
+      },
+      {
+        "name": "Another API call",
+        "command": "curl -X POST https://api.example.com/notify",
+        "sleep": "2s"
+      }
+    ]
+  }]
+}
+```
+
+**Sleep duration format:**
+- Nanoseconds: `"100ns"`
+- Microseconds: `"100us"` or `"100µs"`
+- Milliseconds: `"100ms"`
+- Seconds: `"30s"`
+- Minutes: `"5m"`
+- Hours: `"2h"`
+
+**Use cases:**
+- **Rate limiting**: Prevent API throttling
+- **System stabilization**: Allow services time to initialize
+- **Resource contention**: Space out resource-intensive operations
+- **Network delays**: Account for eventual consistency
+
+### Combining Features
+
+All features can be combined:
+
+```json
+{
+  "name": "Production deployment",
+  "command": "./deploy.sh --environment production",
+  "verbose": true,
+  "timeout": {
+    "interval": "30m",
+    "error_code": 124
+  },
+  "sleep": "10s",
+  "error": "Production deployment failed. Check logs at /var/log/deploy.log"
+}
+```
 
 ---
 

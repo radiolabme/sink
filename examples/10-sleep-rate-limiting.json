@@ -1,0 +1,43 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "version": "0.2.0",
+  "name": "Sleep Rate Limiting Example",
+  "description": "Demonstrates using sleep to add delays between operations",
+  "platforms": [
+    {
+      "name": "API Service Setup",
+      "os": "linux",
+      "match": ".*",
+      "install_steps": [
+        {
+          "name": "Check service status",
+          "command": "systemctl status myservice || true",
+          "message": "Checking service status...",
+          "sleep": "1s"
+        },
+        {
+          "name": "Start service",
+          "command": "sudo systemctl start myservice",
+          "message": "Starting service...",
+          "sleep": "2s"
+        },
+        {
+          "name": "Verify service is running",
+          "check": "systemctl is-active myservice",
+          "on_missing": [
+            {
+              "name": "Restart service with delay",
+              "command": "sudo systemctl restart myservice",
+              "sleep": "3s"
+            },
+            {
+              "name": "Check logs",
+              "command": "sudo journalctl -u myservice -n 20",
+              "sleep": "1s"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

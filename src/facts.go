@@ -47,8 +47,31 @@ func (fg *FactGatherer) Gather() (Facts, error) {
 			}
 		}
 
-		// Run the command
-		stdout, _, exitCode, err := fg.transport.Run(def.Command)
+		if def.Verbose {
+			verboseLog("Gathering fact '%s': %s", name, def.Command)
+		}
+
+		// Run the command with timeout support
+		stdout, stderr, exitCode, err := fg.runFactCommand(name, def)
+
+		if def.Verbose {
+			verboseLog("Fact '%s' exit code: %d", name, exitCode)
+			if stdout != "" {
+				verboseLog("Fact '%s' stdout: %s", name, stdout)
+			}
+			if stderr != "" {
+				verboseLog("Fact '%s' stderr: %s", name, stderr)
+			}
+		}
+
+		// Apply sleep if specified
+		if sleepErr := applySleep(def.Sleep, def.Verbose); sleepErr != nil {
+			if def.Required {
+				return nil, fmt.Errorf("fact '%s' sleep error: %w", name, sleepErr)
+			}
+			// Skip optional fact with sleep error
+			continue
+		}
 
 		// Handle failures based on Required flag
 		if err != nil || exitCode != 0 {
@@ -87,6 +110,14 @@ func (fg *FactGatherer) Gather() (Facts, error) {
 	}
 
 	return facts, nil
+}
+
+// runFactCommand runs a fact-gathering command with timeout support
+func (fg *FactGatherer) runFactCommand(name string, def FactDef) (stdout, stderr string, exitCode int, err error) {
+	// For now, we don't implement custom timeout handling for facts
+	// This would require wrapping the transport Run() call with timeout logic
+	// TODO: Implement timeout support for fact gathering
+	return fg.transport.Run(def.Command)
 }
 
 // Export converts facts to environment variable format

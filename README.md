@@ -303,8 +303,21 @@ The `examples/` directory contains focused, production-ready examples demonstrat
 - **[06-retry.json](examples/06-retry.json)** - Retry logic for handling transient failures
 - **[07-defaults.json](examples/07-defaults.json)** - Reusable configurations with default values
 - **[08-error-handling.json](examples/08-error-handling.json)** - Different error handling patterns
+- **[09-verbose-debugging.json](examples/09-verbose-debugging.json)** - Verbose output for debugging command execution
+- **[10-sleep-rate-limiting.json](examples/10-sleep-rate-limiting.json)** - Sleep delays for rate limiting and service startup
+- **[11-advanced-timeout.json](examples/11-advanced-timeout.json)** - Advanced timeout with custom error codes
 
-Each example is self-contained and can be run independently. For detailed explanations, use cases, and best practices, see **[examples/FAQ.md](examples/FAQ.md)**, which provides a comprehensive, editorial-style guide to all Sink features.
+### Advanced Execution Control
+
+Sink supports several advanced features for fine-grained control over command execution:
+
+**Verbose Mode** - Enable verbose output logging to stderr for debugging. Set `"verbose": true` on any command, fact, or remediation step to see detailed execution information including exit codes and output.
+
+**Sleep Delays** - Add delays after command execution using the `"sleep"` property. Useful for rate limiting API calls, waiting for services to start, or spacing operations. Supports any Go duration format (e.g., `"1s"`, `"500ms"`, `"2m"`).
+
+**Advanced Timeouts** - Configure retry timeouts with custom error codes. Use a simple string (`"timeout": "30s"`) or an object (`"timeout": {"interval": "30s", "error_code": 124}`) to specify both duration and exit code. Custom error codes help distinguish timeout failures from other errors.
+
+Each example is self-contained and can be run independently. For detailed explanations, use cases, and best practices, see **[examples/FAQ.md](examples/FAQ.md)** and **[docs/configuration-reference.md](docs/configuration-reference.md)**, which provide comprehensive guides to all Sink features.
 
 Quick example validation:
 

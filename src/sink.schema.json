@@ -92,6 +92,47 @@
           "type": "boolean",
           "default": false,
           "description": "Fail if fact cannot be gathered on applicable platforms"
+        },
+        "verbose": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose output logging to stderr during fact gathering"
+        },
+        "sleep": {
+          "type": "string",
+          "pattern": "^[0-9]+(ns|us|µs|ms|s|m|h)$",
+          "description": "Duration to sleep after gathering this fact (e.g., '1s', '500ms')",
+          "examples": ["1s", "500ms", "2m"]
+        },
+        "timeout": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+(s|m|h)$",
+              "description": "Simple timeout duration string",
+              "examples": ["30s", "2m", "5m"]
+            },
+            {
+              "type": "object",
+              "description": "Advanced timeout configuration with custom error code",
+              "required": ["interval"],
+              "properties": {
+                "interval": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(s|m|h)$",
+                  "description": "Timeout duration",
+                  "examples": ["30s", "2m"]
+                },
+                "error_code": {
+                  "type": "integer",
+                  "description": "Custom exit code to return on timeout (e.g., 124 for timeout command compatibility)",
+                  "examples": [124, 137, 143]
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Timeout for retry operations. Can be a simple string or an object with interval and error_code"
         }
       },
       "oneOf": [
@@ -273,10 +314,45 @@
               "description": "Retry behavior. 'until' = keep retrying command until it succeeds (exit code 0) or timeout is reached"
             },
             "timeout": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]+(s|m|h)$",
+                  "description": "Simple timeout duration string",
+                  "examples": ["30s", "2m", "5m", "1h"]
+                },
+                {
+                  "type": "object",
+                  "description": "Advanced timeout configuration with custom error code",
+                  "required": ["interval"],
+                  "properties": {
+                    "interval": {
+                      "type": "string",
+                      "pattern": "^[0-9]+(s|m|h)$",
+                      "description": "Timeout duration",
+                      "examples": ["30s", "2m"]
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "description": "Custom exit code to return on timeout (e.g., 124 for timeout command compatibility)",
+                      "examples": [124, 137, 143]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ],
+              "description": "Timeout duration for retry (e.g., '30s', '2m', '5m'). Can be a simple string or an object with interval and error_code. Only used if retry is set. Defaults to 60s if retry is set but timeout is omitted."
+            },
+            "verbose": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable verbose output logging to stderr during command execution"
+            },
+            "sleep": {
               "type": "string",
-              "pattern": "^[0-9]+(s|m|h)$",
-              "description": "Timeout duration for retry (e.g., '30s', '2m', '5m'). Only used if retry is set. Defaults to 60s if retry is set but timeout is omitted.",
-              "examples": ["30s", "2m", "5m", "1h"]
+              "pattern": "^[0-9]+(ns|us|µs|ms|s|m|h)$",
+              "description": "Duration to sleep after executing this command (e.g., '1s', '500ms')",
+              "examples": ["1s", "500ms", "2m"]
             }
           },
           "additionalProperties": false
@@ -347,10 +423,45 @@
           "description": "Retry behavior. 'until' = keep retrying command until it succeeds (exit code 0) or timeout is reached"
         },
         "timeout": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+(s|m|h)$",
+              "description": "Simple timeout duration string",
+              "examples": ["30s", "2m", "5m", "1h"]
+            },
+            {
+              "type": "object",
+              "description": "Advanced timeout configuration with custom error code",
+              "required": ["interval"],
+              "properties": {
+                "interval": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(s|m|h)$",
+                  "description": "Timeout duration",
+                  "examples": ["30s", "2m"]
+                },
+                "error_code": {
+                  "type": "integer",
+                  "description": "Custom exit code to return on timeout (e.g., 124 for timeout command compatibility)",
+                  "examples": [124, 137, 143]
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "Timeout duration for retry (e.g., '30s', '2m', '5m'). Can be a simple string or an object with interval and error_code. Only used if retry is set. Defaults to 60s if retry is set but timeout is omitted."
+        },
+        "verbose": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose output logging to stderr during remediation command execution"
+        },
+        "sleep": {
           "type": "string",
-          "pattern": "^[0-9]+(s|m|h)$",
-          "description": "Timeout duration for retry (e.g., '30s', '2m', '5m'). Only used if retry is set. Defaults to 60s if retry is set but timeout is omitted.",
-          "examples": ["30s", "2m", "5m", "1h"]
+          "pattern": "^[0-9]+(ns|us|µs|ms|s|m|h)$",
+          "description": "Duration to sleep after executing this remediation command (e.g., '1s', '500ms')",
+          "examples": ["1s", "500ms", "2m"]
         }
       },
       "additionalProperties": false

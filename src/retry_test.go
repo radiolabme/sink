@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +13,7 @@ func TestRetryMechanism(t *testing.T) {
 		name          string
 		command       string
 		retry         *string
-		timeout       *string
+		timeout       json.RawMessage
 		expectSuccess bool
 		expectOutput  string
 		minDuration   time.Duration
@@ -42,7 +43,7 @@ func TestRetryMechanism(t *testing.T) {
 			name:          "retry until - quick success",
 			command:       "touch /tmp/sink-test-retry && test -f /tmp/sink-test-retry",
 			retry:         stringPtr("until"),
-			timeout:       stringPtr("5s"),
+			timeout:       json.RawMessage(`"5s"`),
 			expectSuccess: true,
 			expectOutput:  "Ready after",
 			minDuration:   0,
@@ -52,7 +53,7 @@ func TestRetryMechanism(t *testing.T) {
 			name:          "retry until - timeout",
 			command:       "false",
 			retry:         stringPtr("until"),
-			timeout:       stringPtr("2s"),
+			timeout:       json.RawMessage(`"2s"`),
 			expectSuccess: false,
 			expectOutput:  "Timeout after 2s",
 			minDuration:   2 * time.Second,
@@ -72,7 +73,7 @@ func TestRetryMechanism(t *testing.T) {
 			name:          "retry until - custom timeout format",
 			command:       "echo 'success'",
 			retry:         stringPtr("until"),
-			timeout:       stringPtr("1m"),
+			timeout:       json.RawMessage(`"1m"`),
 			expectSuccess: true,
 			expectOutput:  "Ready after",
 			minDuration:   0,
@@ -132,12 +133,12 @@ func TestRetryInvalidTimeout(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		timeout string
+		timeout json.RawMessage
 	}{
-		{"invalid format", "invalid"},
-		{"negative timeout", "-10s"},
-		{"just a number", "5000"},
-		{"empty string", ""},
+		{"invalid format", json.RawMessage(`"invalid"`)},
+		{"negative timeout", json.RawMessage(`"-10s"`)},
+		{"just a number", json.RawMessage(`"5000"`)},
+		{"empty string", json.RawMessage(`""`)},
 	}
 
 	for _, tt := range tests {
@@ -145,13 +146,13 @@ func TestRetryInvalidTimeout(t *testing.T) {
 			step := CommandStep{
 				Command: "echo 'test'",
 				Retry:   stringPtr("until"),
-				Timeout: &tt.timeout,
+				Timeout: tt.timeout,
 			}
 
 			result := executor.executeCommand("test-step", step, Facts{})
 
 			// Empty string should use default (and succeed)
-			if tt.timeout == "" {
+			if string(tt.timeout) == `""` {
 				if result.Status != "success" {
 					t.Errorf("Expected success with default timeout, got %s: %s", result.Status, result.Error)
 				}
@@ -179,7 +180,7 @@ func TestRetryInRemediationSteps(t *testing.T) {
 		Name:    "wait for file",
 		Command: "test -f /tmp/sink-remediation-retry-test || (sleep 2 && touch /tmp/sink-remediation-retry-test && exit 1)",
 		Retry:   stringPtr("until"),
-		Timeout: stringPtr("5s"),
+		Timeout: json.RawMessage(`"5s"`),
 	}
 
 	startTime := time.Now()

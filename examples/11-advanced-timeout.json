@@ -1,0 +1,58 @@
+{
+  "$schema": "../src/sink.schema.json",
+  "version": "0.2.0",
+  "name": "Advanced Timeout Example",
+  "description": "Demonstrates timeout with custom error codes for retry operations",
+  "platforms": [
+    {
+      "name": "Database Setup with Timeouts",
+      "os": "linux",
+      "match": ".*",
+      "install_steps": [
+        {
+          "name": "Wait for database to be ready (simple timeout)",
+          "command": "pg_isready -h localhost",
+          "message": "Waiting for PostgreSQL to start...",
+          "retry": "until",
+          "timeout": "30s"
+        },
+        {
+          "name": "Wait for database with custom error code",
+          "command": "nc -z localhost 5432",
+          "message": "Checking database port with custom timeout...",
+          "retry": "until",
+          "timeout": {
+            "interval": "45s",
+            "error_code": 124
+          }
+        },
+        {
+          "name": "Initialize database schema",
+          "check": "psql -d myapp -c 'SELECT 1 FROM schema_version LIMIT 1' 2>/dev/null",
+          "on_missing": [
+            {
+              "name": "Run migrations with timeout",
+              "command": "./migrate.sh",
+              "retry": "until",
+              "timeout": {
+                "interval": "2m",
+                "error_code": 143
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify database is accessible",
+          "command": "psql -d myapp -c 'SELECT version()'",
+          "message": "Verifying database access...",
+          "retry": "until",
+          "timeout": {
+            "interval": "1m",
+            "error_code": 124
+          },
+          "verbose": true
+        }
+      ]
+    }
+  ]
+}

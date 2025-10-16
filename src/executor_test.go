@@ -118,93 +118,121 @@ func TestExecutorCheckErrorStep(t *testing.T) {
 
 // TestExecutorCheckRemediateStep tests check-remediate step execution
 func TestExecutorCheckRemediateStep(t *testing.T) {
-	mockTransport := &MockTransport{
-		responses: map[string]MockResponse{
-			"command -v snap":              {stdout: "", exitCode: 1},
-			"sudo apt-get install snapd":   {stdout: "Installing...\n", exitCode: 0},
-			"command -v brew":              {stdout: "/usr/local/bin/brew\n", exitCode: 0},
-			"brew install failing-package": {stdout: "", exitCode: 1},
-		},
-	}
+	t.Run("check fails, remediation succeeds", func(t *testing.T) {
+		// Create a stateful mock that changes behavior after remediation
+		callCount := 0
+		statefulTransport := &StatefulMockTransport{
+			runFunc: func(cmd string) (string, string, int, error) {
+				cmd = strings.TrimSpace(cmd)
+				
+				// First call to "command -v snap" fails, subsequent calls succeed
+				if cmd == "command -v snap" {
+					callCount++
+					if callCount == 1 {
+						return "", "", 1, nil // Not installed initially
+					}
+					return "/usr/bin/snap", "", 0, nil // Installed after remediation
+				}
+				
+				// Remediation command succeeds
+				if cmd == "sudo apt-get install snapd" {
+					return "Installing...\n", "", 0, nil
+				}
+				
+				// Discovery commands for context
+				if strings.Contains(cmd, "hostname") || strings.Contains(cmd, "whoami") || 
+					 strings.Contains(cmd, "pwd") || strings.Contains(cmd, "uname") {
+					return "test", "", 0, nil
+				}
+				
+				return "", "command not mocked", 127, nil
+			},
+		}
 
-	tests := []struct {
-		name           string
-		step           InstallStep
-		wantRemediated bool
-		wantError      bool
-	}{
-		{
-			name: "check fails, remediation succeeds",
-			step: InstallStep{
-				Name: "Check snapd",
-				Step: CheckRemediateStep{
-					Check: "command -v snap",
-					OnMissing: []RemediationStep{
-						{
-							Name:    "Install snapd",
-							Command: "sudo apt-get install snapd",
-						},
+		step := InstallStep{
+			Name: "Check snapd",
+			Step: CheckRemediateStep{
+				Check: "command -v snap",
+				OnMissing: []RemediationStep{
+					{
+						Name:    "Install snapd",
+						Command: "sudo apt-get install snapd",
 					},
 				},
 			},
-			wantRemediated: true,
-			wantError:      false,
-		},
-		{
-			name: "check passes, no remediation",
-			step: InstallStep{
-				Name: "Check Homebrew",
-				Step: CheckRemediateStep{
-					Check:     "command -v brew",
-					OnMissing: []RemediationStep{},
-				},
+		}
+
+		executor := NewExecutor(statefulTransport)
+		result := executor.ExecuteStep(step, nil)
+
+		if result.Error != "" {
+			t.Errorf("unexpected error: %s", result.Error)
+		}
+		if result.Status != "success" {
+			t.Errorf("expected status 'success', got %q", result.Status)
+		}
+		if len(result.RemediationSteps) == 0 {
+			t.Error("expected remediation steps but got none")
+		}
+	})
+
+	t.Run("check passes, no remediation", func(t *testing.T) {
+		mockTransport := &MockTransport{
+			responses: map[string]MockResponse{
+				"command -v brew": {stdout: "/usr/local/bin/brew\n", exitCode: 0},
 			},
-			wantRemediated: false,
-			wantError:      false,
-		},
-		{
-			name: "check fails, remediation fails",
-			step: InstallStep{
-				Name: "Check Homebrew",
-				Step: CheckRemediateStep{
-					Check: "command -v snap",
-					OnMissing: []RemediationStep{
-						{
-							Name:    "Install failing package",
-							Command: "brew install failing-package",
-						},
+		}
+
+		step := InstallStep{
+			Name: "Check Homebrew",
+			Step: CheckRemediateStep{
+				Check:     "command -v brew",
+				OnMissing: []RemediationStep{},
+			},
+		}
+
+		executor := NewExecutor(mockTransport)
+		result := executor.ExecuteStep(step, nil)
+
+		if result.Error != "" {
+			t.Errorf("unexpected error: %s", result.Error)
+		}
+		if len(result.RemediationSteps) > 0 {
+			t.Errorf("expected no remediation but got %d steps", len(result.RemediationSteps))
+		}
+	})
+
+	t.Run("check fails, remediation fails", func(t *testing.T) {
+		mockTransport := &MockTransport{
+			responses: map[string]MockResponse{
+				"command -v snap":              {stdout: "", exitCode: 1},
+				"brew install failing-package": {stdout: "", exitCode: 1},
+			},
+		}
+
+		step := InstallStep{
+			Name: "Check Homebrew",
+			Step: CheckRemediateStep{
+				Check: "command -v snap",
+				OnMissing: []RemediationStep{
+					{
+						Name:    "Install failing package",
+						Command: "brew install failing-package",
 					},
 				},
 			},
-			wantRemediated: true,
-			wantError:      true,
-		},
-	}
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			executor := NewExecutor(mockTransport)
-			result := executor.ExecuteStep(tt.step, nil)
+		executor := NewExecutor(mockTransport)
+		result := executor.ExecuteStep(step, nil)
 
-			if tt.wantError {
-				if result.Error == "" {
-					t.Error("expected error but got none")
-				}
-			} else {
-				if result.Error != "" {
-					t.Errorf("unexpected error: %s", result.Error)
-				}
-			}
-
-			// Check if remediation was attempted
-			if tt.wantRemediated && len(result.RemediationSteps) == 0 {
-				t.Error("expected remediation steps but got none")
-			}
-			if !tt.wantRemediated && len(result.RemediationSteps) > 0 {
-				t.Errorf("expected no remediation but got %d steps", len(result.RemediationSteps))
-			}
-		})
-	}
+		if result.Error == "" {
+			t.Error("expected error but got none")
+		}
+		if len(result.RemediationSteps) == 0 {
+			t.Error("expected remediation steps to be recorded")
+		}
+	})
 }
 
 // TestExecutorErrorOnlyStep tests error-only step execution
@@ -227,6 +255,79 @@ func TestExecutorErrorOnlyStep(t *testing.T) {
 	if !strings.Contains(result.Error, "not supported") {
 		t.Errorf("expected error containing 'not supported', got %q", result.Error)
 	}
+}
+
+// TestCheckRemediateWithRecheck tests that remediation is verified by re-running check
+func TestCheckRemediateWithRecheck(t *testing.T) {
+	t.Run("remediation succeeds and recheck passes", func(t *testing.T) {
+		transport := NewLocalTransport()
+		executor := NewExecutor(transport)
+
+		// Create a test file that acts as our "state"
+		testFile := "/tmp/sink-test-recheck"
+		transport.Run("rm -f " + testFile)
+
+		step := InstallStep{
+			Name: "Create test file",
+			Step: CheckRemediateStep{
+				Check: "test -f " + testFile,
+				OnMissing: []RemediationStep{
+					{
+						Name:    "Touch file",
+						Command: "touch " + testFile,
+					},
+				},
+			},
+		}
+
+		result := executor.ExecuteStep(step, nil)
+
+		// Should succeed because remediation creates the file
+		if result.Error != "" {
+			t.Errorf("expected success, got error: %s", result.Error)
+		}
+		if result.Status != "success" {
+			t.Errorf("expected status 'success', got %q", result.Status)
+		}
+
+		// Cleanup
+		transport.Run("rm -f " + testFile)
+	})
+
+	t.Run("remediation succeeds but recheck fails", func(t *testing.T) {
+		transport := NewLocalTransport()
+		executor := NewExecutor(transport)
+
+		step := InstallStep{
+			Name: "Remediation that doesn't fix check",
+			Step: CheckRemediateStep{
+				// Check for a file that will never exist
+				Check: "test -f /tmp/sink-nonexistent-file-xyz",
+				OnMissing: []RemediationStep{
+					{
+						Name:    "Do something unrelated",
+						Command: "echo 'this does not create the file'",
+					},
+				},
+			},
+		}
+
+		result := executor.ExecuteStep(step, nil)
+
+		// Should fail because remediation didn't fix the check
+		if result.Error == "" {
+			t.Error("expected error but got none")
+		}
+		if !strings.Contains(result.Error, "check still fails") {
+			t.Errorf("expected error about check still failing, got: %s", result.Error)
+		}
+		if result.Status != "failed" {
+			t.Errorf("expected status 'failed', got %q", result.Status)
+		}
+		if len(result.RemediationSteps) == 0 {
+			t.Error("expected remediation steps to be recorded")
+		}
+	})
 }
 
 // TestExecutorWithFacts tests step execution with fact interpolation
@@ -474,4 +575,13 @@ func (m *MockTransportWithTracking) Run(cmd string) (stdout, stderr string, exit
 		return resp.stdout, resp.stderr, resp.exitCode, resp.err
 	}
 	return "", "command not mocked", 127, nil
+}
+
+// StatefulMockTransport allows custom run logic for stateful tests
+type StatefulMockTransport struct {
+	runFunc func(cmd string) (stdout, stderr string, exitCode int, err error)
+}
+
+func (s *StatefulMockTransport) Run(cmd string) (stdout, stderr string, exitCode int, err error) {
+	return s.runFunc(cmd)
 }
