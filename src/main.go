@@ -165,6 +165,14 @@ Options:
                          Values: darwin, linux, windows
                          Useful for testing configs on different platforms
   
+  -v, --verbose          Enable verbose output for debugging
+                         Shows detailed command execution, exit codes,
+                         and output for all steps
+  
+  --json                 Output execution events as JSON to stdout
+                         Enables machine-readable structured output
+                         Compatible with --verbose for detailed metadata
+  
   -h, --help             Show this help message
 
 Arguments:
@@ -181,6 +189,18 @@ Examples:
 
   # Dry run to preview steps
   sink execute --dry-run install-config.json
+
+  # Enable verbose output for debugging
+  sink execute --verbose install-config.json
+
+  # JSON output for machine consumption
+  sink execute --json install-config.json
+  
+  # Combine flags for detailed JSON output
+  sink execute --json --verbose --dry-run install-config.json
+
+  # Combine dry-run with verbose for detailed preview
+  sink execute --dry-run --verbose install-config.json
 
   # Override platform for testing
   sink execute --platform linux install-config.json
@@ -440,6 +460,8 @@ Output:
 func executeCommand() {
 	var configFile string
 	var dryRun bool
+	var verbose bool
+	var jsonOutput bool
 	var platformOverride string
 
 	// Parse flags
@@ -452,6 +474,10 @@ func executeCommand() {
 			os.Exit(0)
 		case "--dry-run":
 			dryRun = true
+		case "-v", "--verbose":
+			verbose = true
+		case "--json":
+			jsonOutput = true
 		case "--platform":
 			if i+1 < len(args) {
 				platformOverride = args[i+1]
@@ -483,7 +509,7 @@ func executeCommand() {
 	}
 
 	// Execute using shared function
-	executeConfigWithOptions(config, dryRun, platformOverride)
+	executeConfigWithOptions(config, dryRun, verbose, jsonOutput, platformOverride)
 }
 
 // executeConfigWithOptions executes a loaded configuration with the specified options.
@@ -492,6 +518,7 @@ func executeCommand() {
 // Parameters:
 //   - config: A validated Sink configuration loaded from JSON
 //   - dryRun: If true, preview steps without executing them
+//   - verbose: If true, enable detailed logging for debugging
 //   - platformOverride: Optional platform override (e.g., "linux", "darwin")
 //
 // The function performs the following operations:
@@ -510,21 +537,24 @@ func executeCommand() {
 //
 // The function handles user interaction for confirmation in non-dry-run mode
 // and provides real-time progress feedback during execution.
-func executeConfigWithOptions(config *Config, dryRun bool, platformOverride string) {
+func executeConfigWithOptions(config *Config, dryRun bool, verbose bool, jsonOutput bool, platformOverride string) {
 	// Create transport
 	transport := NewLocalTransport()
 
 	// Gather facts
-	fmt.Println("📊 Gathering facts...")
+	if !jsonOutput {
+		fmt.Println("📊 Gathering facts...")
+	}
 	gatherer := NewFactGatherer(config.Facts, transport)
+	gatherer.Verbose = verbose
 	facts, err := gatherer.Gather()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error gathering facts: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Display gathered facts
-	if len(facts) > 0 {
+	// Display gathered facts (only in non-JSON mode)
+	if !jsonOutput && len(facts) > 0 {
 		fmt.Printf("   Gathered %d facts:\n", len(facts))
 		for name, value := range facts {
 			fmt.Printf("   • %s = %v\n", name, value)
@@ -533,109 +563,147 @@ func executeConfigWithOptions(config *Config, dryRun bool, platformOverride stri
 
 	// Determine platform
 	targetOS := runtime.GOOS
-	if platformOverride != "" {
+	if platformOverride != "" && !jsonOutput {
 		targetOS = platformOverride
 		fmt.Printf("🎯 Platform override: %s\n", targetOS)
+	} else if platformOverride != "" {
+		targetOS = platformOverride
 	}
 
 	// Select platform
+	if verbose {
+		fmt.Fprintf(os.Stderr, "[VERBOSE] Looking for platform matching OS: %s\n", targetOS)
+		fmt.Fprintf(os.Stderr, "[VERBOSE] Available platforms in config:\n")
+		for _, p := range config.Platforms {
+			fmt.Fprintf(os.Stderr, "[VERBOSE]   - %s (os=%s)\n", p.Name, p.OS)
+		}
+	}
+
 	var selectedPlatform *Platform
 	for i := range config.Platforms {
 		if config.Platforms[i].OS == targetOS {
 			selectedPlatform = &config.Platforms[i]
+			if verbose {
+				fmt.Fprintf(os.Stderr, "[VERBOSE] ✓ Matched platform: %s\n", selectedPlatform.Name)
+			}
 			break
 		}
 	}
 
 	if selectedPlatform == nil {
 		fmt.Fprintf(os.Stderr, "Error: no platform configuration found for %s\n", targetOS)
+		if verbose {
+			fmt.Fprintf(os.Stderr, "[VERBOSE] No platform matched target OS '%s'\n", targetOS)
+			fmt.Fprintf(os.Stderr, "[VERBOSE] Available platforms were: ")
+			for i, p := range config.Platforms {
+				if i > 0 {
+					fmt.Fprintf(os.Stderr, ", ")
+				}
+				fmt.Fprintf(os.Stderr, "%s", p.OS)
+			}
+			fmt.Fprintf(os.Stderr, "\n")
+		}
 		os.Exit(1)
 	}
 
-	fmt.Printf("🖥️  Platform: %s (%s)\n", selectedPlatform.Name, selectedPlatform.OS)
-	fmt.Printf("📝 Steps: %d\n\n", len(selectedPlatform.InstallSteps))
+	if !jsonOutput {
+		fmt.Printf("🖥️  Platform: %s (%s)\n", selectedPlatform.Name, selectedPlatform.OS)
+		fmt.Printf("📝 Steps: %d\n\n", len(selectedPlatform.InstallSteps))
+	}
 
 	// Create executor
 	executor := NewExecutor(transport)
 	executor.DryRun = dryRun
+	executor.Verbose = verbose
+	executor.JSONOutput = jsonOutput
 
-	// Display execution context
+	// Display execution context (only in non-JSON mode)
 	ctx := executor.GetContext()
-	fmt.Println("🔍 Execution Context:")
-	fmt.Printf("   Host:      %s\n", ctx.Host)
-	fmt.Printf("   User:      %s\n", ctx.User)
-	fmt.Printf("   Work Dir:  %s\n", ctx.WorkDir)
-	fmt.Printf("   OS/Arch:   %s/%s\n", ctx.OS, ctx.Arch)
-	fmt.Printf("   Transport: %s\n", ctx.Transport)
-	fmt.Println()
-
-	if dryRun {
-		fmt.Println("🔍 DRY RUN MODE - No commands will be executed")
-		fmt.Println()
-	} else {
-		// Confirmation prompt for real execution
-		fmt.Printf("⚠️  You are about to execute %d steps on %s as %s\n",
-			len(selectedPlatform.InstallSteps),
-			ctx.Host,
-			ctx.User)
-		fmt.Print("   Continue? [yes/no]: ")
-
-		var response string
-		fmt.Scanln(&response)
-
-		if response != "yes" {
-			fmt.Println("\n❌ Execution cancelled by user")
-			os.Exit(0)
-		}
+	if !jsonOutput {
+		fmt.Println("🔍 Execution Context:")
+		fmt.Printf("   Host:      %s\n", ctx.Host)
+		fmt.Printf("   User:      %s\n", ctx.User)
+		fmt.Printf("   Work Dir:  %s\n", ctx.WorkDir)
+		fmt.Printf("   OS/Arch:   %s/%s\n", ctx.OS, ctx.Arch)
+		fmt.Printf("   Transport: %s\n", ctx.Transport)
 		fmt.Println()
 	}
 
-	// Set up event handler for progress
-	stepNum := 0
-	executor.OnEvent = func(event ExecutionEvent) {
-		switch event.Status {
-		case "running":
-			stepNum++
-			fmt.Printf("[%d/%d] %s...\n", stepNum, len(selectedPlatform.InstallSteps), event.StepName)
-		case "success":
-			fmt.Printf("      ✓ Success\n")
-			if event.Output != "" && !dryRun {
-				// Show first line of output
-				lines := filepath.SplitList(event.Output)
-				if len(lines) > 0 && lines[0] != "" {
-					fmt.Printf("      Output: %s\n", lines[0])
-				}
+	if dryRun {
+		if !jsonOutput {
+			fmt.Println("🔍 DRY RUN MODE - No commands will be executed")
+			fmt.Println()
+		}
+	} else {
+		// Confirmation prompt for real execution (skip in JSON mode)
+		if !jsonOutput {
+			fmt.Printf("⚠️  You are about to execute %d steps on %s as %s\n",
+				len(selectedPlatform.InstallSteps),
+				ctx.Host,
+				ctx.User)
+			fmt.Print("   Continue? [yes/no]: ")
+
+			var response string
+			fmt.Scanln(&response)
+
+			if response != "yes" {
+				fmt.Println("\n❌ Execution cancelled by user")
+				os.Exit(0)
 			}
-		case "failed":
-			fmt.Printf("      ✗ Failed: %s\n", event.Error)
-		case "skipped":
-			fmt.Printf("      ⊘ Skipped\n")
+			fmt.Println()
+		}
+	}
+
+	// Set up event handler for progress (only in non-JSON mode)
+	stepNum := 0
+	if !jsonOutput {
+		executor.OnEvent = func(event ExecutionEvent) {
+			switch event.Status {
+			case "running":
+				stepNum++
+				fmt.Printf("[%d/%d] %s...\n", stepNum, len(selectedPlatform.InstallSteps), event.StepName)
+			case "success":
+				fmt.Printf("      ✓ Success\n")
+				if event.Output != "" && !dryRun {
+					// Show first line of output
+					lines := filepath.SplitList(event.Output)
+					if len(lines) > 0 && lines[0] != "" {
+						fmt.Printf("      Output: %s\n", lines[0])
+					}
+				}
+			case "failed":
+				fmt.Printf("      ✗ Failed: %s\n", event.Error)
+			case "skipped":
+				fmt.Printf("      ⊘ Skipped\n")
+			}
 		}
 	}
 
 	// Execute
 	results := executor.ExecutePlatform(*selectedPlatform, facts)
 
-	// Summary
-	fmt.Println()
-	successCount := 0
-	failCount := 0
-	for _, result := range results {
-		if result.Error == "" {
-			successCount++
-		} else {
-			failCount++
+	// Summary (only in non-JSON mode)
+	if !jsonOutput {
+		fmt.Println()
+		successCount := 0
+		failCount := 0
+		for _, result := range results {
+			if result.Error == "" {
+				successCount++
+			} else {
+				failCount++
+			}
 		}
-	}
 
-	if failCount > 0 {
-		fmt.Printf("❌ Execution failed: %d succeeded, %d failed\n", successCount, failCount)
-		os.Exit(1)
-	} else {
-		if dryRun {
-			fmt.Printf("✅ Dry run complete: %d steps validated\n", successCount)
+		if failCount > 0 {
+			fmt.Printf("❌ Execution failed: %d succeeded, %d failed\n", successCount, failCount)
+			os.Exit(1)
 		} else {
-			fmt.Printf("✅ Execution complete: %d steps succeeded\n", successCount)
+			if dryRun {
+				fmt.Printf("✅ Dry run complete: %d steps validated\n", successCount)
+			} else {
+				fmt.Printf("✅ Execution complete: %d steps succeeded\n", successCount)
+			}
 		}
 	}
 }

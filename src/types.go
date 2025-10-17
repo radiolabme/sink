@@ -139,8 +139,8 @@ func (CheckErrorStep) isStep() {}
 
 // CheckRemediateStep checks a condition and runs remediation if not met
 type CheckRemediateStep struct {
-	Check     string
-	OnMissing []RemediationStep
+	Check     string            `json:"check"`
+	OnMissing []RemediationStep `json:"on_missing"`
 }
 
 func (CheckRemediateStep) isStep() {}
@@ -218,6 +218,29 @@ type ExecutionEvent struct {
 	Output    string           `json:"output,omitempty"`
 	Error     string           `json:"error,omitempty"`
 	Context   ExecutionContext `json:"context"` // Execution context for this event
+
+	// Verbose metadata (populated when verbose mode is enabled)
+	StepType         string                `json:"step_type,omitempty"`         // Type of step (CommandStep, CheckRemediateStep, etc.)
+	Command          string                `json:"command,omitempty"`           // Command being executed
+	ExitCode         *int                  `json:"exit_code,omitempty"`         // Command exit code
+	Stdout           string                `json:"stdout,omitempty"`            // Standard output
+	Stderr           string                `json:"stderr,omitempty"`            // Standard error
+	Message          string                `json:"message,omitempty"`           // Step message
+	CustomError      string                `json:"custom_error,omitempty"`      // Custom error message
+	Retry            string                `json:"retry,omitempty"`             // Retry configuration
+	Timeout          string                `json:"timeout,omitempty"`           // Timeout configuration
+	Sleep            string                `json:"sleep,omitempty"`             // Sleep duration
+	RemediationSteps []RemediationStepInfo `json:"remediation_steps,omitempty"` // Remediation step metadata
+}
+
+// RemediationStepInfo represents metadata about a remediation step
+type RemediationStepInfo struct {
+	Name        string `json:"name"`
+	CustomError string `json:"custom_error,omitempty"`
+	Retry       string `json:"retry,omitempty"`
+	Timeout     string `json:"timeout,omitempty"`
+	Sleep       string `json:"sleep,omitempty"`
+	Verbose     bool   `json:"verbose"`
 }
 
 // ExecutionResult represents the result of a full execution

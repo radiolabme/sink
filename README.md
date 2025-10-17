@@ -159,13 +159,20 @@ sink help bootstrap
 sink bootstrap --help
 ```
 
-The execute command runs a configuration file with optional platform override and dry-run mode:
+The execute command runs a configuration file with optional platform override, dry-run mode, verbose debugging, and JSON output:
 
 ```bash
 sink execute config.json
 sink execute config.json --dry-run
+sink execute config.json --verbose
+sink execute config.json --json
+sink execute config.json --dry-run --verbose --json
 sink execute config.json --platform linux
 ```
+
+The `--verbose` (or `-v`) flag enables detailed logging for debugging, showing command execution, exit codes, stdout/stderr output, and step-by-step progress. This is invaluable when troubleshooting configuration issues or understanding exactly what commands are being executed.
+
+The `--json` flag outputs all execution events as structured JSON to stdout, enabling machine-readable output for CI/CD pipelines, log aggregators, and monitoring systems. When combined with `--verbose`, the JSON output includes comprehensive metadata about each step including step type, retry configuration, timeout settings, and remediation steps. Human-readable progress is suppressed in JSON mode, with all status output going to stdout as JSON events.
 
 The bootstrap command loads and executes configurations from remote URLs or local files, supporting HTTP, HTTPS, and GitHub URLs with optional checksum verification:
 
@@ -173,6 +180,70 @@ The bootstrap command loads and executes configurations from remote URLs or loca
 sink bootstrap https://example.com/config.json
 sink bootstrap https://example.com/config.json --sha256 <hash>
 sink bootstrap https://example.com/config.json --dry-run
+sink bootstrap https://example.com/config.json --verbose
+sink bootstrap https://example.com/config.json --json
+```
+
+### JSON Output Mode
+
+The `--json` flag enables structured JSON output for integration with automated systems, log aggregators, and monitoring tools. In JSON mode:
+
+- All execution events are emitted as JSON objects to stdout
+- Human-readable progress messages are suppressed
+- Each event includes timestamp, run ID, step name, status, and execution context
+- When combined with `--verbose`, events include comprehensive metadata
+
+Example JSON output:
+
+```bash
+./bin/sink execute config.json --json --verbose --dry-run
+```
+
+```json
+{
+  "timestamp": "2025-10-16T16:57:27-07:00",
+  "run_id": "run-1760658847123456000",
+  "step_name": "Install Dependencies",
+  "status": "running",
+  "context": {
+    "host": "prod-server-01",
+    "user": "deploy",
+    "work_dir": "/opt/app",
+    "os": "Linux",
+    "arch": "x86_64",
+    "transport": "local",
+    "timestamp": "2025-10-16T16:57:27-07:00"
+  },
+  "step_type": "CheckRemediateStep",
+  "remediation_steps": [
+    {
+      "name": "Install via apt",
+      "retry": "until",
+      "timeout": "30s",
+      "verbose": false
+    }
+  ]
+}
+```
+
+JSON output is particularly useful for:
+
+- **CI/CD Integration** - Parse execution results in automated pipelines
+- **Log Aggregation** - Send structured logs to Elasticsearch, Splunk, or CloudWatch
+- **Monitoring** - Track deployment progress and success rates
+- **Debugging** - Combine with `jq` to filter and analyze execution data
+
+Example with jq filtering:
+
+```bash
+# Show only failed steps
+sink execute config.json --json | jq 'select(.status=="failed")'
+
+# Extract timing information
+sink execute config.json --json | jq '{step: .step_name, time: .timestamp, status}'
+
+# Monitor remediation executions
+sink execute config.json --json --verbose | jq 'select(.remediation_steps)'
 ```
 
 The remote command deploys configurations to remote hosts via SSH (currently in development):

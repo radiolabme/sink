@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"text/template"
@@ -10,11 +11,13 @@ import (
 
 // Executor executes installation steps
 type Executor struct {
-	transport Transport
-	DryRun    bool
-	OnEvent   func(ExecutionEvent)
-	runID     string
-	context   ExecutionContext // Execution context (where commands run)
+	transport  Transport
+	DryRun     bool
+	Verbose    bool // Global verbose flag for debugging
+	JSONOutput bool // Output events as JSON to stdout
+	OnEvent    func(ExecutionEvent)
+	runID      string
+	context    ExecutionContext // Execution context (where commands run)
 }
 
 // NewExecutor creates a new executor
@@ -32,6 +35,10 @@ func NewExecutor(transport Transport) *Executor {
 
 // discoverContext discovers the execution environment
 func (e *Executor) discoverContext() ExecutionContext {
+	if e.Verbose {
+		verboseLog("Discovering execution context...")
+	}
+
 	ctx := ExecutionContext{
 		Timestamp: time.Now().Format(time.RFC3339),
 		Transport: "unknown",
@@ -73,6 +80,10 @@ func (e *Executor) discoverContext() ExecutionContext {
 	}
 	// SSH transport detection will be added when SSH is implemented
 
+	if e.Verbose {
+		verboseLog("Context discovered: Host=%s, User=%s, OS=%s, Arch=%s", ctx.Host, ctx.User, ctx.OS, ctx.Arch)
+	}
+
 	return ctx
 }
 
@@ -83,12 +94,19 @@ func (e *Executor) GetContext() ExecutionContext {
 
 // ExecuteStep executes a single installation step
 func (e *Executor) ExecuteStep(step InstallStep, facts Facts) StepResult {
-	e.emitEvent(ExecutionEvent{
+	if e.Verbose {
+		verboseLog("Executing step: %s", step.Name)
+		e.logStepMetadata(step)
+	}
+
+	event := ExecutionEvent{
 		Timestamp: time.Now().Format(time.RFC3339),
 		RunID:     e.runID,
 		StepName:  step.Name,
 		Status:    "running",
-	})
+	}
+	e.populateVerboseMetadata(&event, step)
+	e.emitEvent(event)
 
 	// Handle dry-run mode
 	if e.DryRun {
@@ -130,14 +148,19 @@ func (e *Executor) ExecuteStep(step InstallStep, facts Facts) StepResult {
 	if result.Error != "" {
 		status = "failed"
 	}
-	e.emitEvent(ExecutionEvent{
+	completionEvent := ExecutionEvent{
 		Timestamp: time.Now().Format(time.RFC3339),
 		RunID:     e.runID,
 		StepName:  step.Name,
 		Status:    status,
 		Output:    result.Output,
 		Error:     result.Error,
-	})
+	}
+	if result.ExitCode != 0 {
+		completionEvent.ExitCode = &result.ExitCode
+	}
+	e.populateVerboseMetadata(&completionEvent, step)
+	e.emitEvent(completionEvent)
 
 	return result
 }
@@ -176,14 +199,16 @@ func (e *Executor) executeCommand(stepName string, cmd CommandStep, facts Facts)
 		}
 	}
 
-	if cmd.Verbose {
+	// Log command execution in verbose mode (use global verbose or step-specific)
+	verbose := e.Verbose || cmd.Verbose
+	if verbose {
 		verboseLog("Executing command: %s", command)
 	}
 
-	// Run the command
+	// Execute command
 	stdout, stderr, exitCode, err := e.transport.Run(command)
 
-	if cmd.Verbose {
+	if verbose {
 		verboseLog("Command exit code: %d", exitCode)
 		if stdout != "" {
 			verboseLog("stdout: %s", stdout)
@@ -194,7 +219,7 @@ func (e *Executor) executeCommand(stepName string, cmd CommandStep, facts Facts)
 	}
 
 	// Apply sleep if specified
-	if err := applySleep(cmd.Sleep, cmd.Verbose); err != nil {
+	if err := applySleep(cmd.Sleep, verbose); err != nil {
 		return StepResult{
 			StepName: stepName,
 			Status:   "failed",
@@ -240,7 +265,9 @@ func (e *Executor) executeCommandWithRetry(stepName string, cmd CommandStep, fac
 		}
 	}
 
-	if cmd.Verbose {
+	// Log command execution in verbose mode (use global verbose or step-specific)
+	verbose := e.Verbose || cmd.Verbose
+	if verbose {
 		verboseLog("Executing command with retry: %s", command)
 	}
 
@@ -263,7 +290,7 @@ func (e *Executor) executeCommandWithRetry(stepName string, cmd CommandStep, fac
 		customErrorCode = errCode
 	}
 
-	if cmd.Verbose {
+	if verbose {
 		verboseLog("Retry timeout: %s", timeout)
 		if customErrorCode != nil {
 			verboseLog("Custom timeout error code: %d", *customErrorCode)
@@ -277,20 +304,30 @@ func (e *Executor) executeCommandWithRetry(stepName string, cmd CommandStep, fac
 
 	var lastStdout, lastErrorMsg string
 	var lastExitCode int
+	attemptNum := 0
+
+	if verbose {
+		verboseLog("Starting retry loop: polling every %s, timeout at %s", pollInterval, deadline.Format("15:04:05"))
+	}
 
 	for time.Now().Before(deadline) {
+		attemptNum++
 		stdout, stderr, exitCode, err := e.transport.Run(command)
 
-		if cmd.Verbose {
-			verboseLog("Retry attempt - exit code: %d", exitCode)
+		if verbose {
+			remaining := time.Until(deadline).Round(time.Second)
+			verboseLog("Retry attempt #%d - exit code: %d (timeout in %s)", attemptNum, exitCode, remaining)
 		}
 
 		// Success!
 		if err == nil && exitCode == 0 {
 			elapsed := time.Since(startTime).Round(time.Second)
+			if verbose {
+				verboseLog("✓ Retry succeeded after %d attempt(s) in %s", attemptNum, elapsed)
+			}
 
 			// Apply sleep after successful retry
-			if sleepErr := applySleep(cmd.Sleep, cmd.Verbose); sleepErr != nil {
+			if sleepErr := applySleep(cmd.Sleep, verbose); sleepErr != nil {
 				return StepResult{
 					StepName: stepName,
 					Status:   "failed",
@@ -353,8 +390,16 @@ func (e *Executor) executeCheckError(stepName string, check CheckErrorStep, fact
 		}
 	}
 
+	if e.Verbose {
+		verboseLog("Running check command: %s", checkCmd)
+	}
+
 	// Run the check
 	stdout, _, exitCode, _ := e.transport.Run(checkCmd)
+
+	if e.Verbose {
+		verboseLog("Check command exit code: %d", exitCode)
+	}
 
 	if exitCode != 0 {
 		// Check failed, return the error message
@@ -384,8 +429,16 @@ func (e *Executor) executeCheckRemediate(stepName string, checkRem CheckRemediat
 		}
 	}
 
+	if e.Verbose {
+		verboseLog("Running check command: %s", checkCmd)
+	}
+
 	// Run the check
 	_, _, exitCode, _ := e.transport.Run(checkCmd)
+
+	if e.Verbose {
+		verboseLog("Check command exit code: %d", exitCode)
+	}
 
 	if exitCode == 0 {
 		// Check passed, no remediation needed
@@ -397,6 +450,10 @@ func (e *Executor) executeCheckRemediate(stepName string, checkRem CheckRemediat
 	}
 
 	// Check failed, run remediation steps
+	if e.Verbose {
+		verboseLog("Check failed, running %d remediation step(s)", len(checkRem.OnMissing))
+	}
+
 	remediationResults := []StepResult{}
 	for _, remStep := range checkRem.OnMissing {
 		remResult := e.executeRemediation(remStep, facts)
@@ -414,7 +471,15 @@ func (e *Executor) executeCheckRemediate(stepName string, checkRem CheckRemediat
 	}
 
 	// Re-run the check to verify remediation actually fixed the issue
+	if e.Verbose {
+		verboseLog("Re-running check to verify remediation: %s", checkCmd)
+	}
+
 	_, _, recheckExitCode, _ := e.transport.Run(checkCmd)
+
+	if e.Verbose {
+		verboseLog("Recheck exit code: %d", recheckExitCode)
+	}
 
 	if recheckExitCode != 0 {
 		return StepResult{
@@ -450,14 +515,16 @@ func (e *Executor) executeRemediation(remStep RemediationStep, facts Facts) Step
 		}
 	}
 
-	if remStep.Verbose {
+	// Log remediation execution in verbose mode (use global verbose or step-specific)
+	verbose := e.Verbose || remStep.Verbose
+	if verbose {
 		verboseLog("Executing remediation command: %s", command)
 	}
 
 	// Run the command
 	stdout, stderr, exitCode, err := e.transport.Run(command)
 
-	if remStep.Verbose {
+	if verbose {
 		verboseLog("Remediation exit code: %d", exitCode)
 		if stdout != "" {
 			verboseLog("stdout: %s", stdout)
@@ -468,7 +535,7 @@ func (e *Executor) executeRemediation(remStep RemediationStep, facts Facts) Step
 	}
 
 	// Apply sleep if specified
-	if sleepErr := applySleep(remStep.Sleep, remStep.Verbose); sleepErr != nil {
+	if sleepErr := applySleep(remStep.Sleep, verbose); sleepErr != nil {
 		return StepResult{
 			StepName: remStep.Name,
 			Status:   "failed",
@@ -551,20 +618,31 @@ func (e *Executor) executeRemediationWithRetry(remStep RemediationStep, facts Fa
 
 	var lastStdout, lastErrorMsg string
 	var lastExitCode int
+	attemptNum := 0
+
+	verbose := e.Verbose || remStep.Verbose
+	if verbose {
+		verboseLog("Starting remediation retry loop: polling every %s, timeout at %s", pollInterval, deadline.Format("15:04:05"))
+	}
 
 	for time.Now().Before(deadline) {
+		attemptNum++
 		stdout, stderr, exitCode, err := e.transport.Run(command)
 
-		if remStep.Verbose {
-			verboseLog("Remediation retry attempt - exit code: %d", exitCode)
+		if verbose {
+			remaining := time.Until(deadline).Round(time.Second)
+			verboseLog("Remediation retry attempt #%d - exit code: %d (timeout in %s)", attemptNum, exitCode, remaining)
 		}
 
 		// Success!
 		if err == nil && exitCode == 0 {
 			elapsed := time.Since(startTime).Round(time.Second)
+			if verbose {
+				verboseLog("✓ Remediation retry succeeded after %d attempt(s) in %s", attemptNum, elapsed)
+			}
 
 			// Apply sleep after successful retry
-			if sleepErr := applySleep(remStep.Sleep, remStep.Verbose); sleepErr != nil {
+			if sleepErr := applySleep(remStep.Sleep, verbose); sleepErr != nil {
 				return StepResult{
 					StepName: remStep.Name,
 					Status:   "failed",
@@ -630,23 +708,49 @@ func (e *Executor) interpolate(command string, facts Facts) (string, error) {
 		return command, nil
 	}
 
+	// Log template before interpolation in verbose mode
+	if e.Verbose && strings.Contains(command, "{{") {
+		verboseLog("Template before interpolation: %s", command)
+		verboseLog("Available facts: %v", facts)
+	}
+
 	tmpl, err := template.New("command").Parse(command)
 	if err != nil {
-		return "", err
+		if e.Verbose {
+			verboseLog("Template parse error: %v", err)
+		}
+		return "", fmt.Errorf("template parse error: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, facts); err != nil {
-		return "", err
+		if e.Verbose {
+			verboseLog("Template execution error: %v", err)
+			verboseLog("Available facts were: %v", facts)
+		}
+		return "", fmt.Errorf("template execution error (check fact names): %w", err)
 	}
 
-	return buf.String(), nil
+	result := buf.String()
+	if e.Verbose && command != result {
+		verboseLog("Template after interpolation: %s", result)
+	}
+
+	return result, nil
 }
 
 // emitEvent emits an execution event if a handler is configured
 func (e *Executor) emitEvent(event ExecutionEvent) {
 	// Always include execution context in events
 	event.Context = e.context
+
+	// Output as JSON if JSON mode is enabled
+	if e.JSONOutput {
+		jsonBytes, err := json.MarshalIndent(event, "", "  ")
+		if err == nil {
+			fmt.Println(string(jsonBytes))
+		}
+	}
 
 	if e.OnEvent != nil {
 		e.OnEvent(event)
@@ -656,6 +760,120 @@ func (e *Executor) emitEvent(event ExecutionEvent) {
 // generateRunID generates a unique run ID
 func generateRunID() string {
 	return fmt.Sprintf("run-%d", time.Now().UnixNano())
+}
+
+// logStepMetadata logs all metadata fields from the step configuration
+func (e *Executor) logStepMetadata(step InstallStep) {
+	switch v := step.Step.(type) {
+	case CommandStep:
+		verboseLog("  Step type: CommandStep")
+		if v.Message != nil {
+			verboseLog("  Message: %s", *v.Message)
+		}
+		if v.Error != nil {
+			verboseLog("  Custom error: %s", *v.Error)
+		}
+		if v.Retry != nil {
+			verboseLog("  Retry: %s", *v.Retry)
+		}
+		if len(v.Timeout) > 0 {
+			verboseLog("  Timeout: %s", string(v.Timeout))
+		}
+		if v.Sleep != nil {
+			verboseLog("  Sleep: %s", *v.Sleep)
+		}
+		verboseLog("  Verbose: %v", v.Verbose)
+
+	case CheckErrorStep:
+		verboseLog("  Step type: CheckErrorStep")
+		verboseLog("  Custom error: %s", v.Error)
+
+	case CheckRemediateStep:
+		verboseLog("  Step type: CheckRemediateStep")
+		verboseLog("  Remediation steps: %d", len(v.OnMissing))
+		if len(v.OnMissing) > 0 {
+			for i, rem := range v.OnMissing {
+				verboseLog("    [%d] %s", i+1, rem.Name)
+				if rem.Error != nil {
+					verboseLog("      Custom error: %s", *rem.Error)
+				}
+				if rem.Retry != nil {
+					verboseLog("      Retry: %s", *rem.Retry)
+				}
+				if len(rem.Timeout) > 0 {
+					verboseLog("      Timeout: %s", string(rem.Timeout))
+				}
+				if rem.Sleep != nil {
+					verboseLog("      Sleep: %s", *rem.Sleep)
+				}
+				verboseLog("      Verbose: %v", rem.Verbose)
+			}
+		}
+
+	case ErrorOnlyStep:
+		verboseLog("  Step type: ErrorOnlyStep")
+		verboseLog("  Error: %s", v.Error)
+	}
+}
+
+// populateVerboseMetadata populates verbose metadata fields in an event
+func (e *Executor) populateVerboseMetadata(event *ExecutionEvent, step InstallStep) {
+	if !e.Verbose && !e.JSONOutput {
+		return
+	}
+
+	switch v := step.Step.(type) {
+	case CommandStep:
+		event.StepType = "CommandStep"
+		if v.Message != nil {
+			event.Message = *v.Message
+		}
+		if v.Error != nil {
+			event.CustomError = *v.Error
+		}
+		if v.Retry != nil {
+			event.Retry = *v.Retry
+		}
+		if len(v.Timeout) > 0 {
+			event.Timeout = string(v.Timeout)
+		}
+		if v.Sleep != nil {
+			event.Sleep = *v.Sleep
+		}
+
+	case CheckErrorStep:
+		event.StepType = "CheckErrorStep"
+		event.CustomError = v.Error
+
+	case CheckRemediateStep:
+		event.StepType = "CheckRemediateStep"
+		if len(v.OnMissing) > 0 {
+			event.RemediationSteps = make([]RemediationStepInfo, len(v.OnMissing))
+			for i, rem := range v.OnMissing {
+				info := RemediationStepInfo{
+					Name:    rem.Name,
+					Verbose: rem.Verbose,
+				}
+				if rem.Error != nil {
+					info.CustomError = *rem.Error
+				}
+				if rem.Retry != nil {
+					info.Retry = *rem.Retry
+				}
+				if len(rem.Timeout) > 0 {
+					info.Timeout = string(rem.Timeout)
+				}
+				if rem.Sleep != nil {
+					info.Sleep = *rem.Sleep
+				}
+				event.RemediationSteps[i] = info
+			}
+		}
+
+	case ErrorOnlyStep:
+		event.StepType = "ErrorOnlyStep"
+		event.CustomError = v.Error
+	}
 }
 
 // StepResult represents the result of executing a step

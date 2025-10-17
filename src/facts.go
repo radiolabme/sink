@@ -17,6 +17,7 @@ type FactGatherer struct {
 	definitions map[string]FactDef
 	transport   Transport
 	currentOS   string // Platform to use for filtering (defaults to runtime.GOOS)
+	Verbose     bool   // Global verbose flag for debugging
 }
 
 // NewFactGatherer creates a new fact gatherer
@@ -47,14 +48,16 @@ func (fg *FactGatherer) Gather() (Facts, error) {
 			}
 		}
 
-		if def.Verbose {
+		// Log fact gathering in verbose mode (use global verbose or step-specific)
+		verbose := fg.Verbose || def.Verbose
+		if verbose {
 			verboseLog("Gathering fact '%s': %s", name, def.Command)
 		}
 
 		// Run the command with timeout support
 		stdout, stderr, exitCode, err := fg.runFactCommand(name, def)
 
-		if def.Verbose {
+		if verbose {
 			verboseLog("Fact '%s' exit code: %d", name, exitCode)
 			if stdout != "" {
 				verboseLog("Fact '%s' stdout: %s", name, stdout)
@@ -65,7 +68,7 @@ func (fg *FactGatherer) Gather() (Facts, error) {
 		}
 
 		// Apply sleep if specified
-		if sleepErr := applySleep(def.Sleep, def.Verbose); sleepErr != nil {
+		if sleepErr := applySleep(def.Sleep, verbose); sleepErr != nil {
 			if def.Required {
 				return nil, fmt.Errorf("fact '%s' sleep error: %w", name, sleepErr)
 			}

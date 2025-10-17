@@ -23,6 +23,8 @@ func bootstrapCommand() {
 	// Parse flags
 	configSource := os.Args[2]
 	dryRun := false
+	verbose := false
+	jsonOutput := false
 	platform := ""
 	sha256Hash := ""
 	skipChecksum := false
@@ -35,6 +37,10 @@ func bootstrapCommand() {
 			os.Exit(0)
 		case arg == "--dry-run":
 			dryRun = true
+		case arg == "-v" || arg == "--verbose":
+			verbose = true
+		case arg == "--json":
+			jsonOutput = true
 		case arg == "--skip-checksum":
 			skipChecksum = true
 		case arg == "--platform" && i+1 < len(os.Args):
@@ -69,7 +75,7 @@ func bootstrapCommand() {
 	}
 
 	// Now execute using the same logic as executeCommand
-	executeConfigWithOptions(config, dryRun, platform)
+	executeConfigWithOptions(config, dryRun, verbose, jsonOutput, platform)
 }
 
 // loadConfigFromURL downloads and parses a Sink configuration from a URL.
@@ -306,6 +312,7 @@ Options:
   --platform <os>    Override platform detection (darwin, linux, etc.)
   --sha256 <hash>    Expected SHA256 checksum (required for HTTP)
   --skip-checksum    Skip checksum verification (not recommended)
+  -v, --verbose      Enable verbose output for debugging
   -h, --help         Show this help message
 
 Description:
@@ -354,6 +361,9 @@ Examples:
 
   # Dry-run to preview
   sink bootstrap https://example.com/config.json --dry-run
+
+  # Verbose output for debugging
+  sink bootstrap https://example.com/config.json --verbose
 
   # Override platform detection
   sink bootstrap config.json --platform linux
