@@ -8,6 +8,20 @@ Modern system administration requires repeatable, reliable installation procedur
 
 The framework is built entirely on the Go standard library with zero external dependencies, making it easy to distribute and deploy. Configuration files describe the desired system state using platform-specific commands, while the execution engine ensures operations are idempotent and provides real-time feedback through a structured event system.
 
+## What's New in v0.3.1
+
+Version 0.3.1 brings significant enhancements to debugging and automation capabilities:
+
+**Enhanced Verbose Output** - The `--verbose` flag now provides comprehensive metadata visibility. When enabled, verbose output shows complete step configuration including step type (CommandStep, CheckRemediateStep, etc.), custom error messages, retry configurations, timeout settings, sleep durations, and detailed remediation step information. This eliminates the need for external debuggers when troubleshooting configurations.
+
+**JSON Output Mode** - The new `--json` flag enables machine-readable structured output for CI/CD integration, log aggregation, and monitoring systems. JSON mode outputs all execution events to stdout with complete execution context, timestamps, and status information. When combined with `--verbose`, JSON output includes full configuration metadata making it ideal for automated analysis and debugging.
+
+**Improved Template Debugging** - Template interpolation errors now show both before and after states, along with all available facts, making it easier to identify and fix template issues.
+
+**Bug Fixes** - Fixed JSON unmarshaling for `CheckRemediateStep` where the `on_missing` field wasn't being properly parsed. Added explicit JSON struct tags to ensure reliable parsing of remediation steps.
+
+These enhancements build on v0.3.0's schema synchronization improvements and continue Sink's evolution toward a production-ready deployment tool with first-class observability.
+
 ## Core Features
 
 Sink configurations are declarative JSON documents that define installation steps for specific platforms. The framework automatically detects the host platform and executes only the relevant steps. Before any action is taken, Sink checks whether the target state already exists, preventing redundant operations and ensuring safe re-execution.

@@ -313,6 +313,7 @@ Options:
   --sha256 <hash>    Expected SHA256 checksum (required for HTTP)
   --skip-checksum    Skip checksum verification (not recommended)
   -v, --verbose      Enable verbose output for debugging
+  --json             Output execution events as JSON to stdout
   -h, --help         Show this help message
 
 Description:

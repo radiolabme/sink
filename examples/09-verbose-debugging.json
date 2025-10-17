@@ -1,8 +1,8 @@
 {
   "$schema": "../src/sink.schema.json",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "name": "Verbose Debugging Example",
-  "description": "Demonstrates verbose output for debugging command execution",
+  "description": "Demonstrates enhanced verbose output with comprehensive metadata visibility for debugging",
   "facts": {
     "os": {
       "command": "uname -s",
@@ -25,12 +25,22 @@
           "name": "Check Homebrew installation",
           "command": "which brew",
           "message": "Verifying Homebrew is installed...",
+          "error": "Homebrew is not installed. Please install it from https://brew.sh",
+          "verbose": true
+        },
+        {
+          "name": "Wait for package manager",
+          "command": "pgrep -x brew > /dev/null || exit 0",
+          "message": "Ensuring package manager is not busy...",
+          "retry": "until",
+          "timeout": "30s",
           "verbose": true
         },
         {
           "name": "Update Homebrew",
           "command": "brew update",
           "message": "Updating Homebrew package lists...",
+          "sleep": "2s",
           "verbose": true
         },
         {
@@ -40,6 +50,15 @@
             {
               "name": "Install Git",
               "command": "brew install git",
+              "error": "Failed to install Git via Homebrew",
+              "retry": "until",
+              "timeout": "5m",
+              "verbose": true
+            },
+            {
+              "name": "Verify Git installed successfully",
+              "command": "git --version",
+              "sleep": "1s",
               "verbose": true
             }
           ]
