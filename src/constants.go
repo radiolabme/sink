@@ -77,8 +77,8 @@ const (
 // Version Information
 const (
 	// Version is the current version of sink
-	Version = "0.3.1"
+	Version = "0.3.2"
 
 	// SchemaVersion is the supported config schema version
-	SchemaVersion = "0.3.1"
+	SchemaVersion = "0.3.2"
 )

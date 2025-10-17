@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"text/template"
 	"time"
@@ -110,13 +111,15 @@ func (e *Executor) ExecuteStep(step InstallStep, facts Facts) StepResult {
 
 	// Handle dry-run mode
 	if e.DryRun {
-		e.emitEvent(ExecutionEvent{
+		skippedEvent := ExecutionEvent{
 			Timestamp: time.Now().Format(time.RFC3339),
 			RunID:     e.runID,
 			StepName:  step.Name,
 			Status:    "skipped",
 			Output:    "(dry-run mode)",
-		})
+		}
+		e.populateVerboseMetadata(&skippedEvent, step)
+		e.emitEvent(skippedEvent)
 		return StepResult{
 			StepName: step.Name,
 			Status:   "skipped",
@@ -747,7 +750,11 @@ func (e *Executor) emitEvent(event ExecutionEvent) {
 	// Output as JSON if JSON mode is enabled
 	if e.JSONOutput {
 		jsonBytes, err := json.MarshalIndent(event, "", "  ")
-		if err == nil {
+		if err != nil {
+			// Emit warning to stderr so it doesn't corrupt JSON stdout stream
+			fmt.Fprintf(os.Stderr, "WARNING: Failed to marshal event to JSON: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Event details: step=%s, status=%s\n", event.StepName, event.Status)
+		} else {
 			fmt.Println(string(jsonBytes))
 		}
 	}

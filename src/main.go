@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 //go:embed sink.schema.json
@@ -666,7 +666,7 @@ func executeConfigWithOptions(config *Config, dryRun bool, verbose bool, jsonOut
 				fmt.Printf("      ✓ Success\n")
 				if event.Output != "" && !dryRun {
 					// Show first line of output
-					lines := filepath.SplitList(event.Output)
+					lines := strings.Split(event.Output, "\n")
 					if len(lines) > 0 && lines[0] != "" {
 						fmt.Printf("      Output: %s\n", lines[0])
 					}

@@ -8,9 +8,15 @@ Modern system administration requires repeatable, reliable installation procedur
 
 The framework is built entirely on the Go standard library with zero external dependencies, making it easy to distribute and deploy. Configuration files describe the desired system state using platform-specific commands, while the execution engine ensures operations are idempotent and provides real-time feedback through a structured event system.
 
-## What's New in v0.3.1
+## What's New in v0.3.2
 
-Version 0.3.1 brings significant enhancements to debugging and automation capabilities:
+Version 0.3.2 is a bug fix release that improves reliability and consistency:
+
+**Bug Fixes** - Fixed three critical bugs in the event printer: incorrect line splitting in multi-line output (was using path separator instead of newlines), missing verbose metadata in dry-run skipped events (causing inconsistent JSON output), and silent JSON marshaling errors (now properly logged to stderr). These fixes improve output reliability for both human-readable and machine-readable modes.
+
+### Previous Release - v0.3.1
+
+Version 0.3.1 brought significant enhancements to debugging and automation capabilities:
 
 **Enhanced Verbose Output** - The `--verbose` flag now provides comprehensive metadata visibility. When enabled, verbose output shows complete step configuration including step type (CommandStep, CheckRemediateStep, etc.), custom error messages, retry configurations, timeout settings, sleep durations, and detailed remediation step information. This eliminates the need for external debuggers when troubleshooting configurations.
 
